@@ -22,6 +22,11 @@ export class InputManager {
     return this.state;
   }
 
+  /** Chamado entre passos fixos dentro do mesmo frame. Ver `InputState`. */
+  consumeEdges(): void {
+    this.state.consumeEdges();
+  }
+
   update(nowMs: number, dtMs: number): void {
     for (let i = 0; i < this.devices.length; i++) {
       const device = this.devices[i]!;

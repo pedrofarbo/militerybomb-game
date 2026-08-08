@@ -17,7 +17,7 @@ import {
 
 export class CameraDirector {
   private readonly state: CameraState;
-  private readonly target: CameraTarget = { x: 0, y: 0, facing: 1, vx: 0 };
+  private readonly target: CameraTarget = { x: 0, y: 0, facing: 1, vx: 0, grounded: true };
   private readonly bounds = { width: 0, height: 0 };
   private readonly viewport = { width: 0, height: 0 };
 
@@ -45,16 +45,18 @@ export class CameraDirector {
   snapTo(x: number, y: number): void {
     this.state.x = x;
     this.state.y = y;
+    this.state.anchorY = y;
     this.state.lookahead = 0;
     this.state.trauma = 0;
     this.apply();
   }
 
-  update(x: number, y: number, vx: number, facing: -1 | 1, dtMs: number): void {
+  update(x: number, y: number, vx: number, facing: -1 | 1, grounded: boolean, dtMs: number): void {
     this.target.x = x;
     this.target.y = y;
     this.target.vx = vx;
     this.target.facing = facing;
+    this.target.grounded = grounded;
 
     this.viewport.width = this.camera.width;
     this.viewport.height = this.camera.height;

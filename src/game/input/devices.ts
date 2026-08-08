@@ -30,6 +30,14 @@ export interface InputDevice {
 export class KeyboardDevice implements InputDevice {
   readonly id = 'keyboard' as const;
   private readonly pressed = new Set<string>();
+  /**
+   * Teclas que foram pressionadas desde o último `poll`, mesmo que já tenham
+   * sido soltas. Sem isto, um toque curto que começa e termina entre dois
+   * frames desaparece por completo — o jogo simplesmente ignora o comando.
+   * Acontece com jogadores que dão tapas rápidos no botão e em qualquer frame
+   * que demore mais que o normal.
+   */
+  private readonly tapped = new Set<string>();
   private readonly raw = createRawInput();
   private profile: BindingProfile;
 
@@ -50,8 +58,13 @@ export class KeyboardDevice implements InputDevice {
 
   poll(): RawInput {
     resetRawInput(this.raw);
+    // União das teclas seguradas com as tocadas desde o último poll.
+    for (const code of this.tapped) this.pressed.add(code);
     mapCodesToActions(this.pressed, this.profile, this.raw);
     deriveAxesFromActions(this.raw);
+    // Remove as que já haviam sido soltas: valem por exatamente um frame.
+    for (const code of this.tapped) if (!this.held.has(code)) this.pressed.delete(code);
+    this.tapped.clear();
     return this.raw;
   }
 
@@ -61,18 +74,29 @@ export class KeyboardDevice implements InputDevice {
     this.target.removeEventListener('blur', this.onBlur);
   }
 
+  /** Teclas fisicamente seguradas agora. */
+  private readonly held = new Set<string>();
+
   private readonly onDown = (e: KeyboardEvent): void => {
+    if (e.repeat) return;
+    this.held.add(e.code);
     this.pressed.add(e.code);
+    this.tapped.add(e.code);
     // Espaço e setas rolam a página por baixo do jogo se não bloquear.
     if (SWALLOWED.has(e.code)) e.preventDefault();
   };
 
   private readonly onUp = (e: KeyboardEvent): void => {
-    this.pressed.delete(e.code);
+    this.held.delete(e.code);
+    // A remoção de `pressed` fica a cargo do `poll`: se a tecla foi tocada
+    // neste mesmo intervalo, ela ainda precisa ser lida uma vez.
+    if (!this.tapped.has(e.code)) this.pressed.delete(e.code);
   };
 
   private readonly onBlur = (): void => {
     this.pressed.clear();
+    this.held.clear();
+    this.tapped.clear();
   };
 }
 
@@ -130,10 +154,15 @@ export interface TouchInputSource {
   axisX: number;
   axisY: number;
   readonly buttons: Set<Action>;
+  /**
+   * Ações tocadas desde o último `poll`, mesmo que já soltas. Mesmo motivo do
+   * teclado: um tapa rápido no botão não pode sumir entre dois frames.
+   */
+  readonly tapped: Set<Action>;
 }
 
 export function createTouchInputSource(): TouchInputSource {
-  return { axisX: 0, axisY: 0, buttons: new Set<Action>() };
+  return { axisX: 0, axisY: 0, buttons: new Set<Action>(), tapped: new Set<Action>() };
 }
 
 export class TouchDevice implements InputDevice {
@@ -147,6 +176,8 @@ export class TouchDevice implements InputDevice {
     this.raw.axisX = this.source.axisX;
     this.raw.axisY = this.source.axisY;
     for (const a of this.source.buttons) this.raw.buttons.add(a);
+    for (const a of this.source.tapped) this.raw.buttons.add(a);
+    this.source.tapped.clear();
     this.raw.active = this.raw.buttons.size > 0 || this.raw.axisX !== 0 || this.raw.axisY !== 0;
     // Direcionais derivadas do stick: a mira em 8 direções precisa delas.
     if (this.raw.axisX > 0.35) this.raw.buttons.add(Action.MoveRight);

@@ -62,6 +62,14 @@ export const PLAYER = {
 
   /* ── Estado ── */
   landingMs: 90,
+  /** Acima disto a aterrissagem "pesa": poeira maior e um tranco de câmera. */
+  hardLandingSpeed: 420,
+  hardLandingShake: 0.12,
+  /**
+   * Segurar ↓ e apertar pulo sobre uma plataforma de sentido único faz o
+   * player descer por ela. Sem isso, subir numa plataforma vira uma armadilha.
+   */
+  dropThroughMs: 220,
   hurtMs: 260,
   invulnMs: 900,
   invulnBlinkHz: 12,
@@ -88,7 +96,15 @@ export const PLAYER = {
 export const CAMERA = {
   /** Deadzone: micro-ajustes não movem a câmera (menos enjoo). */
   deadzoneWidth: 120,
-  deadzoneHeight: 80,
+  deadzoneHeight: 48,
+  /**
+   * No ar a câmera segue uma ÂNCORA (a última altura em que o player pisou),
+   * não o player. Sem isso todo pulo balança a tela verticalmente — o maior
+   * causador de enjoo em plataformas 2D.
+   */
+  airborneSlackY: 76,
+  /** Velocidade com que a âncora acompanha o chão sob os pés. */
+  anchorLerpGrounded: 0.2,
   /** Mostra o perigo antes dele te acertar — essencial num run & gun. */
   lookaheadX: 64,
   lookaheadLerp: 0.06,

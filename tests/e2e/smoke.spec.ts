@@ -48,10 +48,13 @@ async function boot(page: Page): Promise<string[]> {
 
 test('a fase carrega sem erros e o player nasce parado no chão', async ({ page }) => {
   const problems = await boot(page);
-  const player = await readPlayer(page);
 
+  // O spawn passa por LAND antes de assentar — tocar o chão pela primeira vez
+  // é uma aterrissagem de verdade, e é ela que dispara a poeira de respawn.
+  await expect.poll(async () => (await readPlayer(page)).state, { timeout: 5000 }).toBe('IDLE');
+
+  const player = await readPlayer(page);
   expect(player.grounded).toBe(true);
-  expect(player.state).toBe('IDLE');
   expect(player.vx).toBe(0);
   expect(problems).toEqual([]);
 });
@@ -130,6 +133,57 @@ test('atirar cria projétil e a troca de arma muda a munição', async ({ page }
 
   // E o pool devolve tudo depois que os projéteis expiram — sem vazamento.
   await expect.poll(activeProjectiles, { timeout: 5000 }).toBe(0);
+});
+
+test('↓ + pulo desce por uma plataforma, sem atravessar o chão', async ({ page }) => {
+  await boot(page);
+  const GROUND_Y = 400; // superfície principal da fase (linha 25 × 16 px)
+
+  /* A primeira plataforma da fase fica sobre x 352–448, 48 px acima do chão.
+     Correr pulando "no escuro" até calhar de pousar nela deixa o teste
+     instável (o player chega no vão e respawna). Em vez disso: posicionar
+     debaixo dela, parar, e pular na vertical. */
+  const PLATFORM_X = 400;
+
+  // Laço fino: o backoff exponencial de `expect.poll` chega a esperar 500 ms
+  // entre leituras, e a 170 px/s isso passa direto da plataforma.
+  await page.keyboard.down('d');
+  for (let i = 0; i < 250; i++) {
+    if ((await readPlayer(page)).x > PLATFORM_X - 40) break;
+    await page.waitForTimeout(25);
+  }
+  await page.keyboard.up('d');
+  await expect.poll(async () => (await readPlayer(page)).vx, { timeout: 3000 }).toBe(0);
+
+  await page.keyboard.down('Space');
+  await page.waitForTimeout(350);
+  await page.keyboard.up('Space');
+
+  await expect
+    .poll(
+      async () => {
+        const r = await readPlayer(page);
+        return r.grounded && r.y < GROUND_Y - 20;
+      },
+      { timeout: 5000 },
+    )
+    .toBe(true);
+
+  const onPlatform = await readPlayer(page);
+
+  await page.keyboard.down('s');
+  await page.waitForTimeout(120);
+  await page.keyboard.press('Space');
+  await page.waitForTimeout(800);
+  await page.keyboard.up('s');
+
+  const after = await readPlayer(page);
+  // Desceu de fato...
+  expect(after.y).toBeGreaterThan(onPlatform.y + 16);
+  // ...e parou no chão, em vez de atravessá-lo e cair para fora do mundo
+  // (o que faria o respawn levar o player de volta ao início da fase).
+  expect(after.grounded).toBe(true);
+  expect(after.x).toBeGreaterThan(200);
 });
 
 test('cair num vão devolve o player ao início da fase', async ({ page }) => {

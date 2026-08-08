@@ -44,9 +44,10 @@ export class DebugService {
 
   update(dtMs: number): void {
     if (!this.visible) return;
-    // 6 Hz: atualizar texto a 60 Hz custa mais que o jogo em celular fraco.
+    // ~16 Hz: atualizar texto a 60 Hz custa mais que o jogo em celular fraco,
+    // mas 6 Hz é lento demais para acompanhar velocidade durante o tuning.
     this.accumulatorMs += dtMs;
-    if (this.accumulatorMs < 160) return;
+    if (this.accumulatorMs < 60) return;
     this.accumulatorMs = 0;
 
     let out = '';

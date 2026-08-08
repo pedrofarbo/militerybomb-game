@@ -12,7 +12,7 @@ const BOUNDS = { width: 1920, height: 384 };
 const STEP = 1000 / 60;
 
 function target(partial: Partial<CameraTarget> = {}): CameraTarget {
-  return { x: 0, y: 0, facing: 1, vx: 0, ...partial };
+  return { x: 0, y: 0, facing: 1, vx: 0, grounded: true, ...partial };
 }
 
 describe('câmera — deadzone e lookahead', () => {
@@ -40,6 +40,49 @@ describe('câmera — deadzone e lookahead', () => {
       stepCamera(running, target({ x: 500, facing: 1, vx: 170 }), VIEWPORT, BOUNDS, STEP, 1);
     }
     expect(running.lookahead).toBeGreaterThan(still.lookahead + 20);
+  });
+});
+
+describe('câmera — âncora vertical', () => {
+  /**
+   * A regra que mais afeta enjoo em plataformas 2D: pular não pode balançar a
+   * tela. A câmera segue a última altura de apoio, não o player no ar.
+   */
+  it('um pulo normal não move a câmera verticalmente', () => {
+    const s = createCameraState(500, 200);
+    // Assenta a âncora no chão.
+    for (let i = 0; i < 60; i++) {
+      stepCamera(s, target({ x: 500, y: 200, grounded: true }), VIEWPORT, BOUNDS, STEP, 1);
+    }
+    const groundedY = s.y;
+
+    // Sobe 64 px (a altura de pulo configurada) e volta.
+    for (let i = 0; i < 20; i++) {
+      stepCamera(s, target({ x: 500, y: 136, grounded: false }), VIEWPORT, BOUNDS, STEP, 1);
+    }
+
+    expect(Math.abs(s.y - groundedY)).toBeLessThan(1);
+  });
+
+  it('mas uma queda longa arrasta a câmera junto', () => {
+    const s = createCameraState(500, 100);
+    for (let i = 0; i < 60; i++) {
+      stepCamera(s, target({ x: 500, y: 100, grounded: true }), VIEWPORT, BOUNDS, STEP, 1);
+    }
+    const before = s.anchorY;
+
+    // 240 px abaixo — muito além da folga aérea.
+    stepCamera(s, target({ x: 500, y: 340, grounded: false }), VIEWPORT, BOUNDS, STEP, 1);
+
+    expect(s.anchorY).toBeGreaterThan(before + 100);
+  });
+
+  it('ao pisar num novo patamar a âncora acompanha o chão', () => {
+    const s = createCameraState(500, 300);
+    for (let i = 0; i < 90; i++) {
+      stepCamera(s, target({ x: 500, y: 220, grounded: true }), VIEWPORT, BOUNDS, STEP, 1);
+    }
+    expect(s.anchorY).toBeCloseTo(220, 0);
   });
 });
 

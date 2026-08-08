@@ -93,6 +93,9 @@ export class TouchControls {
       // liberado, id inválido); se ele viesse antes, uma exceção deixaria o
       // botão visualmente pressionado e sem efeito nenhum no jogo.
       this.source.buttons.add(spec.action);
+      // Marca o toque: garante uma leitura mesmo se o dedo sair antes do
+      // próximo frame do jogo.
+      this.source.tapped.add(spec.action);
       el.classList.add('is-pressed');
       capturePointer(el, e.pointerId);
     };

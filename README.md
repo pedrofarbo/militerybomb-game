@@ -3,9 +3,10 @@
 Jogo 2D de ação lateral (run & gun) para browser, celular e tablet.
 Phaser 4 + TypeScript + Vite. Single-player.
 
-> **Estado:** Fase 0 (arquitetura) e Fase 1 (protótipo do player) concluídas.
-> O player corre, pula, mira em 8 direções e atira, com teclado, gamepad e
-> touch, numa fase de teste com câmera, parallax e respawn.
+> **Estado:** Fase 0 (arquitetura) e Fase 1 (protótipo do player) concluídas,
+> incluindo o passe de ajustes. O player corre, pula, mira em 8 direções,
+> atira e desce por plataformas, com teclado, gamepad e touch, numa fase de
+> teste com câmera, parallax, torre de escalada e respawn.
 > Sem inimigos ainda — isso é a Fase 2.
 
 ## Começando
@@ -19,14 +20,15 @@ Requer Node.js ≥ 22.12.
 
 ### Controles
 
-| Ação        | Teclado         | Gamepad       | Touch                      |
-| ----------- | --------------- | ------------- | -------------------------- |
-| Mover       | `A` `D` / setas | stick / D-pad | direcional flutuante       |
-| Mirar       | `W` `S` / setas | stick         | direcional                 |
-| Pular       | `Espaço` / `K`  | A             | botão **PULO**             |
-| Atirar      | `J` / `Ctrl`    | X / RT        | botão **TIRO** (segurável) |
-| Trocar arma | `Q` / `Tab`     | LB            | —                          |
-| Debug       | `` ` ``         | —             | —                          |
+| Ação              | Teclado         | Gamepad       | Touch                      |
+| ----------------- | --------------- | ------------- | -------------------------- |
+| Mover             | `A` `D` / setas | stick / D-pad | direcional flutuante       |
+| Mirar             | `W` `S` / setas | stick         | direcional                 |
+| Pular             | `Espaço` / `K`  | A             | botão **PULO**             |
+| Atirar            | `J` / `Ctrl`    | X / RT        | botão **TIRO** (segurável) |
+| Descer plataforma | `S`/`↓` + pulo  | ↓ + A         | direcional ↓ + **PULO**    |
+| Trocar arma       | `Q` / `Tab`     | LB            | —                          |
+| Debug             | `` ` ``         | —             | —                          |
 
 `?debug=1` abre o painel de debug direto; `?hitboxes=1` desenha os corpos de colisão.
 
@@ -56,13 +58,17 @@ src/
 
 A fronteira `core` ↛ `game` é **aplicada por lint**, não por convenção: um
 import de Phaser dentro de `src/core` quebra o CI. É isso que mantém a
-simulação testável em Node — os 67 testes unitários rodam em ~0,5 s, sem
+simulação testável em Node — os 87 testes unitários rodam em ~1 s, sem
 canvas, sem WebGL.
 
 Divisão de responsabilidade com a física: **`core` é dono da velocidade**
 (inclusive gravidade, corte de pulo, coyote time), **o Arcade é dono da posição
 e da resolução de colisão**. Sem isso, o que define o game feel ficaria preso
 dentro do motor, impossível de testar e chato de ajustar.
+
+A simulação roda em **passo fixo de 60 Hz** com acumulador: o resultado depende
+do tempo decorrido, não do ritmo de frames. Apresentação e câmera rodam uma vez
+por frame, depois da física.
 
 Detalhes e justificativas: [`docs/TECHNICAL_PLAN.md`](docs/TECHNICAL_PLAN.md).
 
@@ -94,6 +100,9 @@ renderizada 1:1 e ampliada por CSS. Um aparelho 1080p desenha ~288 mil pixels
 por frame em vez de 2 milhões.
 
 Build atual: **~375 KB gzip** no total (Phaser 358 KB + jogo 16 KB + CSS 1,4 KB).
+
+Testes: **87 unitários** (~1 s, sem browser) e **16 de browser** (desktop e
+mobile landscape, contra a build de produção).
 
 ## Originalidade
 

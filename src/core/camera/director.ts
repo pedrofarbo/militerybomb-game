@@ -15,6 +15,8 @@ export interface CameraTarget {
   y: number;
   facing: -1 | 1;
   vx: number;
+  /** No chão a câmera segue o player; no ar, segue a âncora. Ver `stepCamera`. */
+  grounded: boolean;
 }
 
 export interface CameraViewport {
@@ -32,6 +34,8 @@ export interface CameraState {
   x: number;
   y: number;
   lookahead: number;
+  /** Última altura de apoio conhecida — o que a câmera realmente persegue em Y. */
+  anchorY: number;
   /** 0..1. O deslocamento é ∝ trauma², então valores baixos quase não mexem. */
   trauma: number;
   shakeOffsetX: number;
@@ -45,6 +49,7 @@ export function createCameraState(x: number, y: number): CameraState {
     x,
     y,
     lookahead: 0,
+    anchorY: y,
     trauma: 0,
     shakeOffsetX: 0,
     shakeOffsetY: 0,
@@ -75,7 +80,18 @@ export function stepCamera(
   s.lookahead = damp(s.lookahead, desiredLookahead, CAMERA.lookaheadLerp * 60, dtMs);
 
   const focusX = target.x + s.lookahead;
-  const focusY = target.y;
+
+  /* Âncora vertical. No chão ela acompanha os pés; no ar fica parada, e só é
+     arrastada quando o player passa da folga — assim um pulo normal não mexe
+     a câmera, mas uma queda longa ou uma escalada continuam sendo seguidas. */
+  if (target.grounded) {
+    s.anchorY = damp(s.anchorY, target.y, CAMERA.anchorLerpGrounded * 60, dtMs);
+  } else {
+    const offset = target.y - s.anchorY;
+    if (offset > CAMERA.airborneSlackY) s.anchorY = target.y - CAMERA.airborneSlackY;
+    else if (offset < -CAMERA.airborneSlackY) s.anchorY = target.y + CAMERA.airborneSlackY;
+  }
+  const focusY = s.anchorY;
 
   /* Deadzone: a câmera só persegue quando o alvo sai da caixa central. */
   const halfDeadX = CAMERA.deadzoneWidth / 2;

@@ -8,8 +8,8 @@
  */
 
 import Phaser from 'phaser';
-import { WORLD } from '../../core/config/tuning';
-import { parseLevel } from '../../core/level/parse';
+import { PLAYER, WORLD } from '../../core/config/tuning';
+import { ONE_WAY_TILES, parseLevel } from '../../core/level/parse';
 import { LEVEL_01 } from '../../core/level/levels/level-01';
 import type { LevelDef } from '../../core/level/schema';
 import { createRng } from '../../core/math';
@@ -40,7 +40,11 @@ export const LEVEL_DEPS_KEY = 'redline.deps';
 const FIXED_STEP_MS = 1000 / WORLD.fixedFps;
 /** Teto de passos por frame: sem isto, um travamento vira espiral de morte. */
 const MAX_STEPS_PER_FRAME = 5;
+/** Delta máximo aceito de um frame (abas em segundo plano devolvem valores enormes). */
+const MAX_FRAME_MS = 100;
 const PROJECTILE_POOL_SIZE = 64;
+/** A câmera mira o tronco do player, não os pés. */
+const CAMERA_TARGET_OFFSET_Y = 24;
 
 export class LevelScene extends Phaser.Scene {
   private deps!: LevelSceneDeps;
@@ -86,17 +90,33 @@ export class LevelScene extends Phaser.Scene {
         onLand: (x, y, fallSpeed) => {
           // Poeira só na aterrissagem que "pesa": senão vira ruído visual.
           if (fallSpeed > 260) this.fx.play('fx.dust.land', x, y - 4);
+          // Queda longa também sacode a tela: é o que dá peso ao impacto.
+          if (fallSpeed > PLAYER.hardLandingSpeed) this.director.shake(PLAYER.hardLandingShake);
           this.deps.bus.emit('player:landed', { x, y, fallSpeed });
         },
         onWeaponChanged: (weaponId, ammo) => {
           this.deps.bus.emit('weapon:changed', { weaponId, ammo });
         },
         onShake: (trauma) => this.director.shake(trauma),
+        isOnOneWayPlatform: (x, y) => this.isOnOneWayPlatform(x, y),
       },
       this.random,
     );
 
-    this.physics.add.collider(this.player.sprite, this.built.layer);
+    /* O `processCallback` decide, tile a tile, se a colisão vale. Durante uma
+       descida por plataforma rejeitamos APENAS os tiles de sentido único — o
+       chão sólido continua colidindo, então o comando nunca joga o player
+       para fora do mundo. */
+    this.physics.add.collider(
+      this.player.sprite,
+      this.built.layer,
+      undefined,
+      (_sprite, tileObject) => {
+        if (!this.player.isDropping) return true;
+        const tile = tileObject as Phaser.Tilemaps.Tile;
+        return !ONE_WAY_TILES.has(tile.index);
+      },
+    );
 
     /* UM collider para todos os projéteis, registrado uma vez. Registrar um
        collider por tiro (o caminho ingênuo) vaza um handler a cada disparo e
@@ -138,32 +158,42 @@ export class LevelScene extends Phaser.Scene {
   }
 
   override update(_time: number, delta: number): void {
-    const dt = Math.min(delta, 100);
+    const dt = Math.min(delta, MAX_FRAME_MS);
     this.deps.input.update(this.time.now, dt);
 
     /* Passo fixo para a simulação: o mesmo input produz o mesmo resultado em
-       60 Hz, 120 Hz ou num celular engasgando — condição para replays. */
-    this.accumulatorMs = Math.min(this.accumulatorMs + dt, FIXED_STEP_MS * MAX_STEPS_PER_FRAME);
+       60 Hz, 120 Hz ou num celular engasgando — condição para replays.
+       O acumulador é a ÚNICA fonte de tempo da simulação; um passo extra de
+       delta variável quando `steps === 0` (a tentação óbvia) integraria o
+       mesmo tempo duas vezes e faria o jogo rodar ~1,5× mais rápido a 120 Hz. */
+    this.accumulatorMs += dt;
     let steps = 0;
     while (this.accumulatorMs >= FIXED_STEP_MS && steps < MAX_STEPS_PER_FRAME) {
-      this.player.preStep(this.deps.input.snapshot, FIXED_STEP_MS);
+      this.player.step(this.deps.input.snapshot, this.time.now, FIXED_STEP_MS);
+      // Bordas de input valem por FRAME, não por passo: sem consumir, um único
+      // toque de pulo seria contado em cada passo do mesmo frame.
+      this.deps.input.consumeEdges();
       this.accumulatorMs -= FIXED_STEP_MS;
       steps++;
     }
-    if (steps === 0) this.player.preStep(this.deps.input.snapshot, dt);
+    // Travamento longo: descarta o resto em vez de tentar recuperar em rajada.
+    if (this.accumulatorMs > FIXED_STEP_MS * MAX_STEPS_PER_FRAME) this.accumulatorMs = 0;
 
     this.tickProjectiles(dt);
     this.checkOutOfBounds();
   }
 
   private postUpdate(_time: number, delta: number): void {
-    const dt = Math.min(delta, 100);
-    this.player.postStep(this.deps.input.snapshot, this.time.now, dt);
+    const dt = Math.min(delta, MAX_FRAME_MS);
+    // Apresentação: roda uma vez por frame, sempre depois da física, para o
+    // sprite não ficar um frame atrás da posição real.
+    this.player.render();
     this.director.update(
       this.player.x,
-      this.player.y - 24,
+      this.player.y - CAMERA_TARGET_OFFSET_Y,
       this.player.state.vx,
       this.player.state.facing,
+      this.player.state.grounded,
       dt,
     );
     updateParallax(this.built.parallax, this.cameras.main, this.quality !== 'low');
@@ -202,6 +232,16 @@ export class LevelScene extends Phaser.Scene {
     if (index >= 0) this.activeProjectiles.splice(index, 1);
     projectile.deactivate();
     this.projectiles.release(projectile);
+  }
+
+  /**
+   * O tile logo abaixo dos pés é uma plataforma de sentido único?
+   * Só a cena conhece o tilemap — por isso a checagem mora aqui e o Actor
+   * apenas pergunta.
+   */
+  private isOnOneWayPlatform(x: number, y: number): boolean {
+    const tile = this.built.layer.getTileAtWorldXY(x, y + 2, true);
+    return tile !== null && ONE_WAY_TILES.has(tile.index);
   }
 
   private checkOutOfBounds(): void {

@@ -22,7 +22,7 @@ import {
   type MovementInput,
   type MovementResult,
 } from '../../core/player/movement';
-import { armAnimKey, resolveAim } from '../../core/player/aim';
+import { resolveAim } from '../../core/player/aim';
 import { resolvePlayerAnim, runAnimTimeScale } from '../../core/anim/resolver';
 import { createFireOutcome, tryFire, type FireContext } from '../../core/weapons/fire';
 import {
@@ -48,6 +48,11 @@ export interface PlayerCallbacks {
   onLand(x: number, y: number, fallSpeed: number): void;
   onWeaponChanged(weaponId: WeaponId, ammo: number | 'infinite'): void;
   onShake(trauma: number): void;
+  /**
+   * A cena responde se o tile logo abaixo dos pés é uma plataforma de sentido
+   * único. Só ela conhece o tilemap; o Actor só precisa da resposta.
+   */
+  isOnOneWayPlatform(x: number, y: number): boolean;
 }
 
 const FRAME = ART_METRICS.player.frame;
@@ -67,6 +72,7 @@ export class PlayerActor {
   private animLocked = false;
   private spawnX = 0;
   private spawnY = 0;
+  private dropThroughMs = 0;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -117,6 +123,8 @@ export class PlayerActor {
   respawn(): void {
     resetPlayerState(this.state, PLAYER.maxHealth);
     this.state.invulnMs = PLAYER.invulnMs;
+
+    this.dropThroughMs = 0;
     const body = this.sprite.body as Phaser.Physics.Arcade.Body;
     body.reset(this.spawnX, this.spawnY);
     this.sprite.setAlpha(1);
@@ -126,8 +134,13 @@ export class PlayerActor {
     this.animLocked = false;
   }
 
-  /** Roda antes da física: decide as velocidades deste passo. */
-  preStep(input: InputSnapshot, dtMs: number): void {
+  /**
+   * Um passo de SIMULAÇÃO. Roda em passo fixo (`WORLD.fixedFps`), podendo
+   * acontecer zero ou várias vezes por frame — nada aqui pode depender do
+   * tempo de tela. Movimento, mira e tiro moram neste passo porque todos os
+   * três afetam o resultado da partida.
+   */
+  step(input: InputSnapshot, nowMs: number, dtMs: number): void {
     const body = this.sprite.body as Phaser.Physics.Arcade.Body;
     const s = this.state;
 
@@ -136,9 +149,13 @@ export class PlayerActor {
     s.blockedSide = body.blocked.left ? -1 : body.blocked.right ? 1 : 0;
     if (body.blocked.up && s.vy < 0) s.vy = 0;
 
+    const dropping = this.updateDropThrough(input, dtMs);
+
     this.movementInput.axisX = input.axisX;
     this.movementInput.jumpHeld = input.held(Action.Jump);
-    this.movementInput.jumpPressed = input.justPressed(Action.Jump);
+    // Descer por uma plataforma consome o pulo: senão o player desce e pula
+    // no mesmo toque, e nunca consegue atravessar.
+    this.movementInput.jumpPressed = input.justPressed(Action.Jump) && !dropping;
 
     stepMovement(s, this.movementInput, dtMs, this.movementResult);
 
@@ -148,19 +165,52 @@ export class PlayerActor {
     }
 
     body.setVelocity(s.vx, s.vy);
-  }
-
-  /** Roda depois da física: mira, tiro e apresentação. */
-  postStep(input: InputSnapshot, nowMs: number, dtMs: number): void {
-    const s = this.state;
 
     const aim = resolveAim(input.axisX, input.axisY, s.facing, s.grounded);
     s.aim = aim.direction;
 
     if (input.justPressed(Action.SwitchWeapon)) this.cycleWeapon();
-
     this.updateFiring(input, aim.angleRad, nowMs);
-    this.updateVisuals(dtMs);
+  }
+
+  /** Roda uma vez por frame, depois da física: só apresentação. */
+  render(): void {
+    this.updateVisuals();
+  }
+
+  /** A cena consulta isto no `processCallback` do collider. Ver `isDropping`. */
+  get isDropping(): boolean {
+    return this.dropThroughMs > 0;
+  }
+
+  /**
+   * Segurar ↓ + pulo sobre uma plataforma de sentido único atravessa-a.
+   *
+   * A supressão NÃO é feita com `body.checkCollision.down = false`: isso
+   * desligaria também o chão sólido, e uma queda de 48 px leva ~220 ms — na
+   * prática o player atravessava o chão e caía para fora do mundo. Em vez
+   * disso, marcamos um estado e a cena rejeita apenas os tiles de sentido
+   * único no `processCallback` do collider, deixando o chão intacto.
+   */
+  private updateDropThrough(input: InputSnapshot, dtMs: number): boolean {
+    if (this.dropThroughMs > 0) {
+      this.dropThroughMs = Math.max(0, this.dropThroughMs - dtMs);
+      return false;
+    }
+
+    const wants =
+      this.state.grounded &&
+      input.held(Action.AimDown) &&
+      input.justPressed(Action.Jump) &&
+      this.callbacks.isOnOneWayPlatform(this.sprite.x, this.sprite.y);
+
+    if (!wants) return false;
+
+    this.dropThroughMs = PLAYER.dropThroughMs;
+    this.state.grounded = false;
+    this.state.coyoteMs = 0;
+    this.state.vy = Math.max(this.state.vy, 30);
+    return true;
   }
 
   private updateFiring(input: InputSnapshot, angleRad: number, nowMs: number): void {
@@ -193,7 +243,7 @@ export class PlayerActor {
     this.callbacks.onWeaponChanged(def.id, this.weapon.ammo);
   }
 
-  private updateVisuals(dtMs: number): void {
+  private updateVisuals(): void {
     const s = this.state;
     this.sprite.setFlipX(s.facing === -1);
 
@@ -218,13 +268,9 @@ export class PlayerActor {
       this.sprite.y + PLAYER.shoulderY,
     );
     this.arm.setFlipX(s.facing === -1);
-    const armKey = armAnimKey(s.aim);
-    if (s.firing) {
-      this.arm.play(armKey, true);
-    } else if (this.arm.anims.currentAnim?.key !== armKey || !this.arm.anims.isPlaying) {
-      this.arm.play(armKey, true);
-      this.arm.anims.pause(this.arm.anims.currentAnim?.frames[0]);
-    }
+    /* O braço tem só dois frames (repouso e recuo): trocar o frame direto é
+       mais barato e mais previsível do que tocar e pausar uma animação. */
+    this.arm.setTexture('characters', `dara/arm/${s.aim}/${s.firing ? 1 : 0}`);
     this.arm.setVisible(!s.dead);
 
     /* Piscada de invulnerabilidade — ritmo fixo, legível. */
@@ -236,8 +282,6 @@ export class PlayerActor {
       this.sprite.setAlpha(1);
       this.arm.setAlpha(1);
     }
-
-    void dtMs;
   }
 
   private cycleWeapon(): void {
