@@ -1,0 +1,13 @@
+{
+  "name": "redline",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "REDLINE — jogo 2D run & gun para browser e mobile",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "art:placeholders": "node tools/placeholder-gen/generate.mjs"
+  }
+}

@@ -1,0 +1,131 @@
+{
+	"name": "redline-industrial",
+	"tileWidth": 16,
+	"tileHeight": 16,
+	"columns": 8,
+	"count": 24,
+	"image": "tileset.png",
+	"tiles": [
+		{
+			"index": 0,
+			"id": "empty",
+			"solid": false
+		},
+		{
+			"index": 1,
+			"id": "ground_top_l",
+			"solid": true
+		},
+		{
+			"index": 2,
+			"id": "ground_top",
+			"solid": true
+		},
+		{
+			"index": 3,
+			"id": "ground_top_r",
+			"solid": true
+		},
+		{
+			"index": 4,
+			"id": "ground_mid",
+			"solid": true
+		},
+		{
+			"index": 5,
+			"id": "ground_deep",
+			"solid": true
+		},
+		{
+			"index": 6,
+			"id": "ground_l",
+			"solid": true
+		},
+		{
+			"index": 7,
+			"id": "ground_r",
+			"solid": true
+		},
+		{
+			"index": 8,
+			"id": "platform_l",
+			"solid": true
+		},
+		{
+			"index": 9,
+			"id": "platform_m",
+			"solid": true
+		},
+		{
+			"index": 10,
+			"id": "platform_r",
+			"solid": true
+		},
+		{
+			"index": 11,
+			"id": "crate_wall",
+			"solid": true
+		},
+		{
+			"index": 12,
+			"id": "pipe_h",
+			"solid": true
+		},
+		{
+			"index": 13,
+			"id": "pipe_v",
+			"solid": true
+		},
+		{
+			"index": 14,
+			"id": "grate",
+			"solid": true
+		},
+		{
+			"index": 15,
+			"id": "hazard_stripe",
+			"solid": false
+		},
+		{
+			"index": 16,
+			"id": "container_tl",
+			"solid": true
+		},
+		{
+			"index": 17,
+			"id": "container_t",
+			"solid": true
+		},
+		{
+			"index": 18,
+			"id": "container_tr",
+			"solid": true
+		},
+		{
+			"index": 19,
+			"id": "container_l",
+			"solid": true
+		},
+		{
+			"index": 20,
+			"id": "container_m",
+			"solid": true
+		},
+		{
+			"index": 21,
+			"id": "container_r",
+			"solid": true
+		},
+		{
+			"index": 22,
+			"id": "ladder",
+			"solid": false
+		},
+		{
+			"index": 23,
+			"id": "rail",
+			"solid": false
+		}
+	],
+	"note": "PLACEHOLDER — gerado por tools/placeholder-gen."
+}

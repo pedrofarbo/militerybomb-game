@@ -1,0 +1,478 @@
+{
+	"frames": [
+		{
+			"filename": "hud/bossbar/fill",
+			"frame": {
+				"x": 160,
+				"y": 388,
+				"w": 8,
+				"h": 10
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 8,
+				"h": 10
+			},
+			"sourceSize": {
+				"w": 8,
+				"h": 10
+			}
+		},
+		{
+			"filename": "hud/bossbar/left",
+			"frame": {
+				"x": 133,
+				"y": 388,
+				"w": 8,
+				"h": 14
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 8,
+				"h": 14
+			},
+			"sourceSize": {
+				"w": 8,
+				"h": 14
+			}
+		},
+		{
+			"filename": "hud/bossbar/mid",
+			"frame": {
+				"x": 142,
+				"y": 388,
+				"w": 8,
+				"h": 14
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 8,
+				"h": 14
+			},
+			"sourceSize": {
+				"w": 8,
+				"h": 14
+			}
+		},
+		{
+			"filename": "hud/bossbar/right",
+			"frame": {
+				"x": 151,
+				"y": 388,
+				"w": 8,
+				"h": 14
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 8,
+				"h": 14
+			},
+			"sourceSize": {
+				"w": 8,
+				"h": 14
+			}
+		},
+		{
+			"filename": "hud/button/pause",
+			"frame": {
+				"x": 461,
+				"y": 259,
+				"w": 24,
+				"h": 24
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 24,
+				"h": 24
+			},
+			"sourceSize": {
+				"w": 24,
+				"h": 24
+			}
+		},
+		{
+			"filename": "hud/health/critical",
+			"frame": {
+				"x": 88,
+				"y": 388,
+				"w": 14,
+				"h": 18
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 14,
+				"h": 18
+			},
+			"sourceSize": {
+				"w": 14,
+				"h": 18
+			}
+		},
+		{
+			"filename": "hud/health/empty",
+			"frame": {
+				"x": 103,
+				"y": 388,
+				"w": 14,
+				"h": 18
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 14,
+				"h": 18
+			},
+			"sourceSize": {
+				"w": 14,
+				"h": 18
+			}
+		},
+		{
+			"filename": "hud/health/full",
+			"frame": {
+				"x": 118,
+				"y": 388,
+				"w": 14,
+				"h": 18
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 14,
+				"h": 18
+			},
+			"sourceSize": {
+				"w": 14,
+				"h": 18
+			}
+		},
+		{
+			"filename": "hud/icon/grenade",
+			"frame": {
+				"x": 486,
+				"y": 259,
+				"w": 20,
+				"h": 20
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 20,
+				"h": 20
+			},
+			"sourceSize": {
+				"w": 20,
+				"h": 20
+			}
+		},
+		{
+			"filename": "hud/weapon/machinegun",
+			"frame": {
+				"x": 1,
+				"y": 388,
+				"w": 28,
+				"h": 20
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 28,
+				"h": 20
+			},
+			"sourceSize": {
+				"w": 28,
+				"h": 20
+			}
+		},
+		{
+			"filename": "hud/weapon/pistol",
+			"frame": {
+				"x": 30,
+				"y": 388,
+				"w": 28,
+				"h": 20
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 28,
+				"h": 20
+			},
+			"sourceSize": {
+				"w": 28,
+				"h": 20
+			}
+		},
+		{
+			"filename": "hud/weapon/shotgun",
+			"frame": {
+				"x": 59,
+				"y": 388,
+				"w": 28,
+				"h": 20
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 28,
+				"h": 20
+			},
+			"sourceSize": {
+				"w": 28,
+				"h": 20
+			}
+		},
+		{
+			"filename": "touch/btn/grenade/down",
+			"frame": {
+				"x": 1,
+				"y": 1,
+				"w": 128,
+				"h": 128
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 128,
+				"h": 128
+			},
+			"sourceSize": {
+				"w": 128,
+				"h": 128
+			}
+		},
+		{
+			"filename": "touch/btn/grenade/up",
+			"frame": {
+				"x": 130,
+				"y": 1,
+				"w": 128,
+				"h": 128
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 128,
+				"h": 128
+			},
+			"sourceSize": {
+				"w": 128,
+				"h": 128
+			}
+		},
+		{
+			"filename": "touch/btn/jump/down",
+			"frame": {
+				"x": 259,
+				"y": 1,
+				"w": 128,
+				"h": 128
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 128,
+				"h": 128
+			},
+			"sourceSize": {
+				"w": 128,
+				"h": 128
+			}
+		},
+		{
+			"filename": "touch/btn/jump/up",
+			"frame": {
+				"x": 1,
+				"y": 130,
+				"w": 128,
+				"h": 128
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 128,
+				"h": 128
+			},
+			"sourceSize": {
+				"w": 128,
+				"h": 128
+			}
+		},
+		{
+			"filename": "touch/btn/shoot/down",
+			"frame": {
+				"x": 130,
+				"y": 130,
+				"w": 128,
+				"h": 128
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 128,
+				"h": 128
+			},
+			"sourceSize": {
+				"w": 128,
+				"h": 128
+			}
+		},
+		{
+			"filename": "touch/btn/shoot/up",
+			"frame": {
+				"x": 259,
+				"y": 130,
+				"w": 128,
+				"h": 128
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 128,
+				"h": 128
+			},
+			"sourceSize": {
+				"w": 128,
+				"h": 128
+			}
+		},
+		{
+			"filename": "touch/btn/special/down",
+			"frame": {
+				"x": 1,
+				"y": 259,
+				"w": 128,
+				"h": 128
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 128,
+				"h": 128
+			},
+			"sourceSize": {
+				"w": 128,
+				"h": 128
+			}
+		},
+		{
+			"filename": "touch/btn/special/up",
+			"frame": {
+				"x": 130,
+				"y": 259,
+				"w": 128,
+				"h": 128
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 128,
+				"h": 128
+			},
+			"sourceSize": {
+				"w": 128,
+				"h": 128
+			}
+		},
+		{
+			"filename": "touch/stick/base",
+			"frame": {
+				"x": 259,
+				"y": 259,
+				"w": 128,
+				"h": 128
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 128,
+				"h": 128
+			},
+			"sourceSize": {
+				"w": 128,
+				"h": 128
+			}
+		},
+		{
+			"filename": "touch/stick/knob",
+			"frame": {
+				"x": 388,
+				"y": 259,
+				"w": 72,
+				"h": 72
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 72,
+				"h": 72
+			},
+			"sourceSize": {
+				"w": 72,
+				"h": 72
+			}
+		}
+	],
+	"meta": {
+		"app": "redline/placeholder-gen",
+		"version": "1.0",
+		"image": "ui.png",
+		"format": "RGBA8888",
+		"size": {
+			"w": 512,
+			"h": 512
+		},
+		"scale": "1",
+		"note": "PLACEHOLDER ART — gerado por tools/placeholder-gen. Não editar à mão."
+	}
+}

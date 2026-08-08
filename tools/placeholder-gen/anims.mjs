@@ -1,0 +1,97 @@
+/**
+ * Catálogo de animações — fonte única de verdade.
+ * O gerador valida que TODO frame referenciado aqui existe no atlas, então um
+ * erro de digitação quebra o build de assets, não o jogo em runtime.
+ *
+ * repeat: -1 = loop infinito, 0 = toca uma vez.
+ * lock:   true = não pode ser interrompida (dor, morte, transição de fase).
+ */
+export const ANIMS = [
+  // ── Player ──
+  { key: 'player.idle', atlas: 'characters', prefix: 'dara/idle/', frames: 6, frameRate: 8, repeat: -1 },
+  { key: 'player.run', atlas: 'characters', prefix: 'dara/run/', frames: 8, frameRate: 14, repeat: -1 },
+  { key: 'player.jump', atlas: 'characters', prefix: 'dara/jump/', frames: 2, frameRate: 10, repeat: 0 },
+  { key: 'player.fall', atlas: 'characters', prefix: 'dara/fall/', frames: 2, frameRate: 8, repeat: -1 },
+  { key: 'player.land', atlas: 'characters', prefix: 'dara/land/', frames: 2, frameRate: 16, repeat: 0 },
+  { key: 'player.hurt', atlas: 'characters', prefix: 'dara/hurt/', frames: 2, frameRate: 10, repeat: 0, lock: true },
+  { key: 'player.death', atlas: 'characters', prefix: 'dara/death/', frames: 6, frameRate: 9, repeat: 0, lock: true },
+  { key: 'player.arm.fwd', atlas: 'characters', prefix: 'dara/arm/fwd/', frames: 2, frameRate: 18, repeat: 0 },
+  { key: 'player.arm.up45', atlas: 'characters', prefix: 'dara/arm/up45/', frames: 2, frameRate: 18, repeat: 0 },
+  { key: 'player.arm.up', atlas: 'characters', prefix: 'dara/arm/up/', frames: 2, frameRate: 18, repeat: 0 },
+  { key: 'player.arm.down45', atlas: 'characters', prefix: 'dara/arm/down45/', frames: 2, frameRate: 18, repeat: 0 },
+  { key: 'player.arm.down', atlas: 'characters', prefix: 'dara/arm/down/', frames: 2, frameRate: 18, repeat: 0 },
+
+  // ── Soldado ──
+  { key: 'soldier.idle', atlas: 'enemies', prefix: 'soldier/idle/', frames: 4, frameRate: 6, repeat: -1 },
+  { key: 'soldier.walk', atlas: 'enemies', prefix: 'soldier/walk/', frames: 6, frameRate: 10, repeat: -1 },
+  { key: 'soldier.attack', atlas: 'enemies', prefix: 'soldier/attack/', frames: 4, frameRate: 12, repeat: 0 },
+  { key: 'soldier.hurt', atlas: 'enemies', prefix: 'soldier/hurt/', frames: 2, frameRate: 12, repeat: 0, lock: true },
+  { key: 'soldier.death', atlas: 'enemies', prefix: 'soldier/death/', frames: 5, frameRate: 10, repeat: 0, lock: true },
+
+  // ── Soldado Pesado ──
+  { key: 'heavy.idle', atlas: 'enemies', prefix: 'heavy/idle/', frames: 4, frameRate: 5, repeat: -1 },
+  { key: 'heavy.walk', atlas: 'enemies', prefix: 'heavy/walk/', frames: 6, frameRate: 7, repeat: -1 },
+  { key: 'heavy.attack', atlas: 'enemies', prefix: 'heavy/attack/', frames: 5, frameRate: 14, repeat: -1 },
+  { key: 'heavy.hurt', atlas: 'enemies', prefix: 'heavy/hurt/', frames: 2, frameRate: 12, repeat: 0, lock: true },
+  { key: 'heavy.death', atlas: 'enemies', prefix: 'heavy/death/', frames: 6, frameRate: 9, repeat: 0, lock: true },
+
+  // ── Torreta ──
+  { key: 'turret.idle', atlas: 'enemies', prefix: 'turret/idle/', frames: 2, frameRate: 2, repeat: -1 },
+  { key: 'turret.attack', atlas: 'enemies', prefix: 'turret/attack/', frames: 4, frameRate: 14, repeat: 0 },
+  { key: 'turret.hurt', atlas: 'enemies', prefix: 'turret/hurt/', frames: 2, frameRate: 12, repeat: 0, lock: true },
+  { key: 'turret.death', atlas: 'enemies', prefix: 'turret/death/', frames: 4, frameRate: 8, repeat: 0, lock: true },
+
+  // ── Mini-boss "Estivador" ──
+  { key: 'boss.base.idle', atlas: 'boss', prefix: 'estivador/base/idle/', frames: 4, frameRate: 4, repeat: -1 },
+  { key: 'boss.base.idle2', atlas: 'boss', prefix: 'estivador/base/idle2/', frames: 4, frameRate: 6, repeat: -1 },
+  { key: 'boss.base.hurt', atlas: 'boss', prefix: 'estivador/base/hurt/', frames: 2, frameRate: 12, repeat: 0, lock: true },
+  { key: 'boss.base.phase', atlas: 'boss', prefix: 'estivador/base/phase/', frames: 3, frameRate: 3, repeat: 0, lock: true },
+  { key: 'boss.base.death', atlas: 'boss', prefix: 'estivador/base/death/', frames: 8, frameRate: 6, repeat: 0, lock: true },
+  { key: 'boss.claw.idle', atlas: 'boss', prefix: 'estivador/claw/idle/', frames: 2, frameRate: 3, repeat: -1 },
+  { key: 'boss.claw.swing', atlas: 'boss', prefix: 'estivador/claw/swing/', frames: 5, frameRate: 12, repeat: 0 },
+  { key: 'boss.core.idle', atlas: 'boss', prefix: 'estivador/core/idle/', frames: 4, frameRate: 4, repeat: -1 },
+  { key: 'boss.core.exposed', atlas: 'boss', prefix: 'estivador/core/exposed/', frames: 4, frameRate: 10, repeat: -1 },
+
+  // ── FX ──
+  { key: 'fx.muzzle.small', atlas: 'fx', prefix: 'muzzle/small/', frames: 3, frameRate: 30, repeat: 0 },
+  { key: 'fx.muzzle.medium', atlas: 'fx', prefix: 'muzzle/medium/', frames: 3, frameRate: 30, repeat: 0 },
+  { key: 'fx.muzzle.large', atlas: 'fx', prefix: 'muzzle/large/', frames: 3, frameRate: 26, repeat: 0 },
+  { key: 'fx.impact.metal', atlas: 'fx', prefix: 'impact/metal/', frames: 4, frameRate: 26, repeat: 0 },
+  { key: 'fx.impact.concrete', atlas: 'fx', prefix: 'impact/concrete/', frames: 4, frameRate: 26, repeat: 0 },
+  { key: 'fx.impact.armor', atlas: 'fx', prefix: 'impact/armor/', frames: 4, frameRate: 26, repeat: 0 },
+  { key: 'fx.dust.land', atlas: 'fx', prefix: 'dust/land/', frames: 5, frameRate: 18, repeat: 0 },
+  { key: 'fx.dust.run', atlas: 'fx', prefix: 'dust/run/', frames: 4, frameRate: 16, repeat: 0 },
+  { key: 'fx.smoke.puff', atlas: 'fx', prefix: 'smoke/puff/', frames: 6, frameRate: 12, repeat: 0 },
+  { key: 'fx.explosion.small', atlas: 'fx', prefix: 'explosion/small/', frames: 7, frameRate: 20, repeat: 0 },
+  { key: 'fx.explosion.medium', atlas: 'fx', prefix: 'explosion/medium/', frames: 8, frameRate: 18, repeat: 0 },
+  { key: 'fx.explosion.large', atlas: 'fx', prefix: 'explosion/large/', frames: 9, frameRate: 16, repeat: 0 },
+  { key: 'fx.marker.checkpoint', atlas: 'fx', prefix: 'marker/checkpoint/', frames: 4, frameRate: 12, repeat: 0 },
+  { key: 'projectile.grenade', atlas: 'fx', prefix: 'grenade/', frames: 4, frameRate: 16, repeat: -1 },
+  { key: 'projectile.rocket', atlas: 'fx', prefix: 'rocket/', frames: 2, frameRate: 20, repeat: -1 },
+
+  // ── Cenário ──
+  { key: 'prop.checkpoint.on', atlas: 'env', prefix: 'prop/checkpoint/on/', frames: 4, frameRate: 8, repeat: -1 },
+  { key: 'pickup.weapon_mg', atlas: 'env', prefix: 'pickup/weapon_mg/', frames: 2, frameRate: 4, repeat: -1 },
+  { key: 'pickup.weapon_sg', atlas: 'env', prefix: 'pickup/weapon_sg/', frames: 2, frameRate: 4, repeat: -1 },
+  { key: 'pickup.grenade', atlas: 'env', prefix: 'pickup/grenade/', frames: 2, frameRate: 4, repeat: -1 },
+  { key: 'pickup.health', atlas: 'env', prefix: 'pickup/health/', frames: 2, frameRate: 4, repeat: -1 },
+  { key: 'pickup.ammo', atlas: 'env', prefix: 'pickup/ammo/', frames: 2, frameRate: 4, repeat: -1 },
+];
+
+/** Frames estáticos (sem animação) que o gameplay referencia por chave. */
+export const STATIC_SPRITES = [
+  { key: 'projectile.bullet', atlas: 'fx', frame: 'bullet/player/0' },
+  { key: 'projectile.pellet', atlas: 'fx', frame: 'bullet/pellet/0' },
+  { key: 'projectile.enemyBullet', atlas: 'fx', frame: 'bullet/enemy/0' },
+  { key: 'projectile.heavyBullet', atlas: 'fx', frame: 'bullet/heavy/0' },
+  { key: 'prop.crate.intact', atlas: 'env', frame: 'prop/crate/0' },
+  { key: 'prop.crate.damaged', atlas: 'env', frame: 'prop/crate/1' },
+  { key: 'prop.crate.broken', atlas: 'env', frame: 'prop/crate/2' },
+  { key: 'prop.barrel.intact', atlas: 'env', frame: 'prop/barrel/0' },
+  { key: 'prop.barrel.primed', atlas: 'env', frame: 'prop/barrel/1' },
+  { key: 'prop.generator.intact', atlas: 'env', frame: 'prop/generator/0' },
+  { key: 'prop.generator.broken', atlas: 'env', frame: 'prop/generator/1' },
+  { key: 'prop.checkpoint.off', atlas: 'env', frame: 'prop/checkpoint/off/0' },
+  { key: 'prop.gate.open', atlas: 'env', frame: 'prop/gate/0' },
+  { key: 'prop.gate.closed', atlas: 'env', frame: 'prop/gate/1' },
+];

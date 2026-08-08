@@ -64,7 +64,20 @@ flexível em vez de 1280×720 fixo.
 | 19 | PWA | `vite-plugin-pwa` 1.3.0, ligado só na Fase 6 | Não deixar service worker atrapalhar o dev loop nem o cache de assets durante a produção de arte. |
 | 20 | Backend | **Nenhum** no MVP | Sem ranking online, sem contas. §30 (segurança) só prepara o terreno. |
 
-### 2.1 Conflitos identificados e decisões pendentes (precisam da sua aprovação)
+### 2.1 Decisões aprovadas e conflitos identificados
+
+> **Aprovado em 2026-08-08:**
+> - **(a) Phaser 4.2.1** — confirmado.
+> - **(b) Resolução lógica 640×360** — confirmada.
+> - **(f) Arte:** placeholders programáticos agora (`tools/placeholder-gen`,
+>   entregues), arte final produzida por IA seguindo `docs/AI_ART_BRIEF.md`
+>   e `docs/ART_SPEC.md`. Risco **R1** deixa de ser bloqueante de cronograma
+>   e passa a ser um risco de *qualidade e consistência* — mitigado pela
+>   restrição de paleta, pela validação automática de assets e pelo uso dos
+>   placeholders como condicionamento estrutural (Rota A do briefing).
+>
+> As demais decisões abaixo seguem como propostas.
+
 
 **(a) Phaser 3 vs Phaser 4 — CONFLITO com o requisito §2 do briefing.**
 Você especificou Phaser 3. Estado real hoje (verificado no registry npm em 2026-08-08):
