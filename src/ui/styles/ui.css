@@ -135,10 +135,21 @@ body {
   letter-spacing: 0.12em;
 }
 
+.hud-block--right {
+  align-items: flex-end;
+}
+
 .hud-score {
   color: var(--met5);
   font-size: 15px;
   letter-spacing: 0.14em;
+  text-shadow: 0 1px 0 var(--ink);
+}
+
+.hud-lives {
+  color: var(--rust4);
+  font-size: 11px;
+  letter-spacing: 0.12em;
   text-shadow: 0 1px 0 var(--ink);
 }
 
@@ -208,6 +219,68 @@ body {
   .orientation-gate__icon {
     animation: none;
   }
+}
+
+/* ─────────────────── Fim de fase / fim de jogo ───────────────────── */
+
+/* Ancorado ao CANVAS (`.ui-root`), não à viewport: num embed o painel cobre
+   o jogo, não a página inteira. */
+.outcome {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 14px;
+  text-align: center;
+  padding: 24px;
+  background: rgba(13, 11, 18, 0.82);
+  pointer-events: auto;
+}
+
+.outcome[hidden] {
+  display: none;
+}
+
+.outcome__title {
+  margin: 0;
+  font-size: 28px;
+  letter-spacing: 0.22em;
+  color: var(--haz);
+  text-shadow: 0 2px 0 var(--ink);
+}
+
+.outcome--win .outcome__title {
+  color: var(--sig3);
+}
+
+.outcome__detail {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  color: var(--met5);
+}
+
+.outcome__button {
+  margin-top: 6px;
+  padding: 11px 22px;
+  /* 44 px de altura mínima: alvo de toque confortável também no celular. */
+  min-height: 44px;
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  color: var(--ink);
+  background: var(--sig3);
+  border: 2px solid var(--ink);
+  border-radius: 3px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.outcome__button:hover,
+.outcome__button:focus-visible {
+  background: var(--met5);
 }
 
 /* ────────────────────────── Controles touch ─────────────────────── */

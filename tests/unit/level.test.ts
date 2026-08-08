@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ONE_WAY_TILES, parseLevel, TILE } from '../../src/core/level/parse';
+import { findExit, ONE_WAY_TILES, parseLevel, TILE } from '../../src/core/level/parse';
 import { LevelParseError, type LevelSource } from '../../src/core/level/schema';
 import { LEVEL_01 } from '../../src/core/level/levels/level-01';
 import { PLAYER } from '../../src/core/config/tuning';
@@ -63,6 +63,29 @@ describe('parse de fase — validação', () => {
 
   it('rejeita spawn dentro de tile sólido', () => {
     expect(() => parseLevel(source(['####'], { spawnTile: { x: 1, y: 0 } }))).toThrow(/sólido/);
+  });
+
+  it('rejeita mais de uma saída — qual delas terminaria a fase?', () => {
+    expect(() =>
+      parseLevel(
+        source(['....', '####'], {
+          entities: [
+            { type: 'exit', tileX: 1, tileY: 0 },
+            { type: 'exit', tileX: 2, tileY: 0 },
+          ],
+        }),
+      ),
+    ).toThrow(/saídas/);
+  });
+
+  /**
+   * Uma fase sem saída não tem como terminar: o jogador anda até a borda do
+   * mundo e cai no vazio. Falhar ao CARREGAR é o único jeito de isso não virar
+   * um bug de playtest — foi assim que apareceu da primeira vez.
+   */
+  it('carregar uma fase sem saída falha', () => {
+    const def = parseLevel(source(['....', '####']));
+    expect(() => findExit(def)).toThrow(/não tem saída/);
   });
 });
 
@@ -206,6 +229,33 @@ describe('fase 1 — invariantes de level design', () => {
       (e) => e.x < safeZoneEnd && ['soldier', 'heavy', 'turret'].includes(e.type),
     );
     expect(early).toEqual([]);
+  });
+
+  /**
+   * A fase precisa TERMINAR. Sem saída o jogador corria até o fim do mapa,
+   * saía do mundo e morria — o "limbo" que apareceu no primeiro playtest.
+   */
+  it('tem uma saída, sobre chão sólido e antes da borda do mundo', () => {
+    const exit = findExit(def);
+    const at = (x: number, y: number): number => def.tiles[y * def.width + x] ?? 0;
+
+    const tileX = Math.floor(exit.x / def.tileWidth);
+    const feetTileY = Math.floor(exit.y / def.tileHeight);
+    expect(def.solidTiles.has(at(tileX, feetTileY))).toBe(true);
+
+    // Folga até a borda: quem corre segurando → precisa de espaço para o
+    // gatilho disparar antes de bater na parede invisível do fim do mundo.
+    expect(def.bounds.width - exit.x).toBeGreaterThanOrEqual(3 * def.tileWidth);
+  });
+
+  it('a saída fica depois de todos os inimigos', () => {
+    const exit = findExit(def);
+    const lastEnemyX = Math.max(
+      ...def.entities
+        .filter((e) => ['soldier', 'heavy', 'turret'].includes(e.type))
+        .map((e) => e.x),
+    );
+    expect(exit.x).toBeGreaterThan(lastEnemyX);
   });
 
   it('declara as camadas de parallax que o cenário espera', () => {

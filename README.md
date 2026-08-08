@@ -5,7 +5,8 @@ Phaser 4 + TypeScript + Vite. Single-player.
 
 > **Estado:** Fases 0 (arquitetura), 1 (player) e 2 (combate) concluídas.
 > A fase tem 11 inimigos de 3 tipos, 9 objetos destrutíveis com explosão em
-> cadeia, granadas, dano nos dois sentidos e pontuação.
+> cadeia, granadas, dano nos dois sentidos, pontuação, **3 vidas** e um
+> **portão de extração** que encerra a fase.
 > Falta a Fase 3: checkpoint, mini-boss, menus e áudio.
 
 ## Começando
@@ -29,7 +30,18 @@ Requer Node.js ≥ 22.12.
 | Trocar arma       | `Q` / `Tab`     | LB            | —                          |
 | Debug             | `` ` ``         | —             | —                          |
 
-`?debug=1` abre o painel de debug direto; `?hitboxes=1` desenha os corpos de colisão.
+`?debug=1` abre o painel de debug direto; `?hitboxes=1` desenha os corpos de
+colisão; `?spawn=120` entra direto naquela coluna de tiles, para não ter de
+rejogar o mapa inteiro ao ajustar o fim da fase.
+
+### Uma tentativa
+
+Três vidas, e uma vida extra a cada 5 000 pontos. Perder uma vida **reinicia a
+fase com os inimigos de volta** — enquanto não existem checkpoints (Fase 3),
+voltar ao início com o mapa já limpo seria andar por um cenário vazio, não
+recomeçar. **A pontuação sobrevive à morte e só zera no fim de jogo**: é isso
+que dá sentido a ter três vidas — três tentativas de fazer UMA pontuação.
+A fase termina no portão de extração, no fim do mapa.
 
 ## Scripts
 
@@ -58,7 +70,7 @@ src/
 
 A fronteira `core` ↛ `game` é **aplicada por lint**, não por convenção: um
 import de Phaser dentro de `src/core` quebra o CI. É isso que mantém a
-simulação testável em Node — os 132 testes unitários rodam em ~1 s, sem
+simulação testável em Node — os 147 testes unitários rodam em ~1 s, sem
 canvas, sem WebGL. A IA dos inimigos inteira é testada assim: "soldado vê o
 jogador → telegrafa antes de atirar" é um teste unitário, não um playtest.
 
@@ -117,7 +129,7 @@ por frame em vez de 2 milhões.
 
 Build atual: **~383 KB gzip** no total (Phaser 358 KB + jogo 23 KB + CSS 1,6 KB).
 
-Testes: **132 unitários** (~1 s, sem browser) e **26 de browser** (desktop e
+Testes: **147 unitários** (~1 s, sem browser) e **36 de browser** (desktop e
 mobile landscape, contra a build de produção).
 
 ## Originalidade

@@ -11,11 +11,7 @@ import type Phaser from 'phaser';
 import { Action } from '../../core/input/actions';
 import type { InputSnapshot } from '../../core/input/snapshot';
 import { PLAYER } from '../../core/config/tuning';
-import {
-  createPlayerState,
-  resetPlayerState,
-  type PlayerState,
-} from '../../core/player/player-state';
+import { createPlayerState, type PlayerState } from '../../core/player/player-state';
 import {
   createMovementResult,
   stepMovement,
@@ -85,14 +81,13 @@ export class PlayerActor {
   private weapon: WeaponState;
   private currentAnim = '';
   private animLocked = false;
-  private spawnX = 0;
-  private spawnY = 0;
   private dropThroughMs = 0;
   readonly health: HealthState;
   private readonly damageResult = createDamageResult();
   private readonly box: Aabb = { x: 0, y: 0, w: 0, h: 0 };
   private grenades: number = GRENADE.maxCount;
   private grenadeReadyAtMs = 0;
+  private frozen = false;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -116,7 +111,12 @@ export class PlayerActor {
     body.setOffset(PLAYER.bodyOffsetX, PLAYER.bodyOffsetY);
     // A gravidade é do core (ver movement.ts). O Arcade só move e resolve.
     body.setAllowGravity(false);
-    body.setCollideWorldBounds(false);
+    /* Contido pelos limites do mundo — mas só na horizontal: a cena desliga a
+       colisão em cima e embaixo (`setBoundsCollision`), senão o jogador ficaria
+       de pé sobre o fundo do mundo em vez de cair nos vãos. Sem isto ele
+       simplesmente atravessava a borda direita e caía no vazio depois do fim
+       da fase. */
+    body.setCollideWorldBounds(true);
 
     this.arm = scene.add.sprite(x, y, 'characters', 'dara/arm/fwd/0');
     this.arm.setOrigin(0.5, 0.5);
@@ -132,33 +132,21 @@ export class PlayerActor {
       triggerPressed: false,
       random,
     };
-
-    this.setSpawn(x, y);
   }
 
-  setSpawn(x: number, y: number): void {
-    this.spawnX = x;
-    this.spawnY = y;
-  }
-
-  respawn(): void {
-    resetPlayerState(this.state, PLAYER.maxHealth);
-    this.health.current = this.health.max;
-    this.health.dead = false;
-    this.health.invulnMs = PLAYER.invulnMs;
-    this.state.invulnMs = PLAYER.invulnMs;
-    this.grenades = GRENADE.maxCount;
-    this.callbacks.onHealthChanged(this.health.current, this.health.max);
-    this.callbacks.onGrenadesChanged(this.grenades);
-
-    this.dropThroughMs = 0;
-    const body = this.sprite.body as Phaser.Physics.Arcade.Body;
-    body.reset(this.spawnX, this.spawnY);
-    this.sprite.setAlpha(1);
-    this.sprite.setActive(true).setVisible(true);
-    this.arm.setVisible(true);
-    this.currentAnim = '';
-    this.animLocked = false;
+  /**
+   * Congela o comando, não a física.
+   *
+   * Usado quando a fase acabou: o personagem ainda cai e continua encostado no
+   * chão, mas para de andar e de atirar. Parar o passo inteiro em vez disso
+   * deixaria o corpo suspenso no ar se a fase terminasse durante um pulo.
+   */
+  setFrozen(frozen: boolean): void {
+    this.frozen = frozen;
+    if (frozen) {
+      this.state.vx = 0;
+      this.state.firing = false;
+    }
   }
 
   /**
@@ -175,6 +163,15 @@ export class PlayerActor {
     s.grounded = body.blocked.down || body.touching.down;
     s.blockedSide = body.blocked.left ? -1 : body.blocked.right ? 1 : 0;
     if (body.blocked.up && s.vy < 0) s.vy = 0;
+
+    if (this.frozen) {
+      this.movementInput.axisX = 0;
+      this.movementInput.jumpHeld = false;
+      this.movementInput.jumpPressed = false;
+      stepMovement(s, this.movementInput, dtMs, this.movementResult);
+      body.setVelocity(s.vx, s.vy);
+      return;
+    }
 
     tickHealth(this.health, dtMs);
     this.state.invulnMs = this.health.invulnMs;

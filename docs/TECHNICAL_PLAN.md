@@ -559,6 +559,22 @@ interface CheckpointSnapshot {
 Regra: **morrer** restaura `RunState` a partir de `CheckpointSnapshot` e recarrega o
 `LevelRuntime` da região. Nada além de `ProfileState` toca o disco.
 
+**Implementado na Fase 2** (`core/progression/run-state.ts`), sem `checkpoint` nem
+`loadout` — os dois entram na Fase 3, junto com os checkpoints. Enquanto não existem,
+morrer recarrega a fase inteira: voltar ao início com o mapa já limpo não é recomeçar,
+é andar por um cenário vazio. Duas decisões que valem registrar:
+
+- **A pontuação sobrevive à perda de uma vida** e só zera no fim de jogo. É o que dá
+  sentido a ter três vidas — três tentativas de fazer UMA pontuação, não três
+  pontuações separadas.
+- **O `RunState` vive fora da Scene** (injetado por `LevelSceneDeps`). Recarregar a
+  fase é `scene.restart()`, que destrói tudo o que pertence à cena; o placar precisa
+  sobreviver exatamente a isso.
+
+A fase também ganhou uma entidade `exit`: sem ela o jogador andava até a borda do
+mundo e caía no vazio. `findExit()` FALHA ao carregar uma fase sem saída — uma fase
+sem fim é erro de autoria, não um caso a tratar em runtime.
+
 O estado de cada entidade é um objeto plano dentro do Actor (`actor.state`), nunca disperso em
 propriedades do Sprite. Isso permite serializar uma entidade para debug/replay.
 
@@ -1047,9 +1063,9 @@ onde indicado.
 
 | Fase                    | Entrega                                                                                                                                                                                                             | Depende de                          | Critério de saída                                                                                                                                                                             |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **0 — Architecture** ✅ | repo, Vite/TS/ESLint/Prettier/Vitest/Playwright, `core/` com fronteira aplicada por lint, event bus, tuning, save, manifesto, scale handler, debug, CI                                                              | —                                   | **concluída** — `npm run ci` verde; 132 testes unitários; 26 testes de browser                                                                                                                |
+| **0 — Architecture** ✅ | repo, Vite/TS/ESLint/Prettier/Vitest/Playwright, `core/` com fronteira aplicada por lint, event bus, tuning, save, manifesto, scale handler, debug, CI                                                              | —                                   | **concluída** — `npm run ci` verde; 147 testes unitários; 36 testes de browser                                                                                                                |
 | **1 — Prototype** ✅    | player completo (mover, pulo variável+coyote+buffer, mira 8-way, tiro), câmera com deadzone/lookahead/trauma, tilemap com plataformas de sentido único, parallax, teclado+gamepad+touch, pool de projéteis, respawn | 0                                   | **concluída**, incluindo passe de ajustes (passo fixo, câmera vertical ancorada, descida por plataforma, latch de toque curto). Falta o gate subjetivo de game feel (playtest com 3+ pessoas) |
-| **2 — Combat**          | dano, i-frames, knockback, 3 inimigos com brains, 3 armas, granadas, explosões, destrutíveis, matriz de colisão                                                                                                     | 1                                   | Combate legível e justo; unit tests de `core/combat` e `core/enemies` passando                                                                                                                |
+| **2 — Combat** ✅       | dano, i-frames, knockback, 3 inimigos com brains, 3 armas, granadas, explosões, destrutíveis, matriz de colisão                                                                                                     | 1                                   | **concluída**, incluindo `RunState` (3 vidas, vida extra por pontuação, fim de jogo) e portão de saída — sem eles a fase não tinha fim e morrer não custava nada                              |
 | **3 — Vertical Slice**  | Fase 1 completa no Tiled, checkpoint, mini-boss, HUD DOM, menus, áudio, FX, progressão                                                                                                                              | 2                                   | Fase jogável do início ao fim, com morte e retorno ao checkpoint funcionando                                                                                                                  |
 | **4 — Mobile**          | controles touch, multitouch, gate de orientação, safe areas, perf mobile, `QualitySystem`                                                                                                                           | 3 (pode começar em paralelo após 2) | 45+ fps em Android de gama média real; jogável só com os dedos                                                                                                                                |
 | **5 — Polish**          | arte final, animações, partículas, hit stop, screen shake, mix de áudio, feel pass, tutorial silencioso                                                                                                             | 3, 4                                | Playtest externo: pessoas terminam a fase sem instruções                                                                                                                                      |

@@ -118,12 +118,32 @@ export function parseLevel(src: LevelSource): LevelDef {
   };
 }
 
+/**
+ * A saída da fase.
+ *
+ * Uma fase sem saída não tem como terminar: o jogador anda até a borda do
+ * mundo e cai no vazio. Isso aconteceu de verdade, e a única pista era o
+ * respawn logo depois. Por isso a busca FALHA em vez de devolver `undefined` —
+ * carregar uma fase sem fim é um erro de autoria, não um caso a tratar.
+ */
+export function findExit(def: LevelDef): LevelEntity {
+  const exits = def.entities.filter((e) => e.type === 'exit');
+  if (exits.length === 0) throw new LevelParseError(`fase "${def.id}" não tem saída ('exit')`);
+  if (exits.length > 1) {
+    throw new LevelParseError(`fase "${def.id}" tem ${exits.length} saídas; deve ter exatamente 1`);
+  }
+  return exits[0]!;
+}
+
 function parseEntities(
   src: LevelSource,
   width: number,
   height: number,
   tiles: readonly number[],
 ): LevelEntity[] {
+  const exits = (src.entities ?? []).filter((e) => e.type === 'exit').length;
+  if (exits > 1) throw new LevelParseError(`${exits} saídas declaradas; deve haver no máximo 1`);
+
   return (src.entities ?? []).map((entity, index) => {
     if (entity.tileX < 0 || entity.tileY < 0 || entity.tileX >= width || entity.tileY >= height) {
       throw new LevelParseError(

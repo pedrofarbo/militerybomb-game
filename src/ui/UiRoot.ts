@@ -15,10 +15,17 @@ export class UiRoot {
   private readonly hudHealth: HTMLElement;
   private readonly hudGrenades: HTMLElement;
   private readonly hudScore: HTMLElement;
+  private readonly hudLives: HTMLElement;
   private readonly hudHint: HTMLElement;
   private readonly orientationGate: HTMLElement;
+  private readonly outcome: HTMLElement;
+  private readonly outcomeTitle: HTMLElement;
+  private readonly outcomeDetail: HTMLElement;
+  private readonly outcomeButton: HTMLButtonElement;
   private readonly touch: TouchControls;
   private touchEnabled = false;
+  private outcomeFrom: 'game-over' | 'level-complete' = 'game-over';
+  private hintTimer = 0;
 
   constructor(parent: HTMLElement, bus: GameEventBus, touchSource: TouchInputSource) {
     this.element = document.createElement('div');
@@ -38,12 +45,17 @@ export class UiRoot {
     this.hudGrenades.className = 'hud-grenades';
     topLeft.append(this.hudHealth, this.hudWeapon, this.hudGrenades);
 
+    const topRight = document.createElement('div');
+    topRight.className = 'hud-block hud-block--right';
     this.hudScore = document.createElement('div');
     this.hudScore.className = 'hud-score';
+    this.hudLives = document.createElement('div');
+    this.hudLives.className = 'hud-lives';
+    topRight.append(this.hudScore, this.hudLives);
 
     const topRow = document.createElement('div');
     topRow.className = 'hud-row';
-    topRow.append(topLeft, this.hudScore);
+    topRow.append(topLeft, topRight);
 
     this.hudHint = document.createElement('div');
     this.hudHint.className = 'hud-hint';
@@ -57,6 +69,27 @@ export class UiRoot {
       '<p class="orientation-gate__text">Gire o dispositivo<br><span>REDLINE é jogado na horizontal</span></p>';
     this.orientationGate.hidden = true;
     this.element.appendChild(this.orientationGate);
+
+    /* Painel de fim (game over / fase completa). Vive fora do canvas de
+       propósito: é texto, precisa de foco de teclado e de um alvo de toque
+       de verdade — três coisas que o DOM já resolve e o canvas não. */
+    this.outcome = document.createElement('div');
+    this.outcome.className = 'outcome';
+    this.outcome.hidden = true;
+    this.outcome.setAttribute('role', 'dialog');
+    this.outcome.setAttribute('aria-live', 'assertive');
+    this.outcomeTitle = document.createElement('h2');
+    this.outcomeTitle.className = 'outcome__title';
+    this.outcomeDetail = document.createElement('p');
+    this.outcomeDetail.className = 'outcome__detail';
+    this.outcomeButton = document.createElement('button');
+    this.outcomeButton.className = 'outcome__button';
+    this.outcomeButton.type = 'button';
+    this.outcomeButton.addEventListener('click', () => {
+      bus.emit('run:restartRequested', { from: this.outcomeFrom });
+    });
+    this.outcome.append(this.outcomeTitle, this.outcomeDetail, this.outcomeButton);
+    this.element.appendChild(this.outcome);
 
     this.touch = new TouchControls(this.element, touchSource);
 
@@ -72,10 +105,56 @@ export class UiRoot {
     bus.on('score:changed', ({ score }) => {
       this.hudScore.textContent = String(score).padStart(6, '0');
     });
-    bus.on('player:died', () => {
-      this.setHint('Você caiu — voltando ao checkpoint');
-      window.setTimeout(() => this.setHint(''), 1600);
+    bus.on('lives:changed', ({ lives, delta }) => {
+      this.renderLives(lives);
+      if (delta > 0) {
+        this.setHint('VIDA EXTRA');
+        this.clearHintLater();
+      }
     });
+    bus.on('run:started', () => {
+      this.outcome.hidden = true;
+      this.touch.setVisible(this.touchEnabled);
+      this.setHint('');
+    });
+    bus.on('player:died', ({ atCheckpointId }) => {
+      this.setHint(atCheckpointId === null ? 'Reiniciando a fase…' : 'Voltando ao checkpoint…');
+      this.clearHintLater();
+    });
+    bus.on('level:complete', ({ timeMs, score }) => {
+      this.showOutcome(
+        'level-complete',
+        'FASE COMPLETA',
+        formatOutcome(score, timeMs),
+        'JOGAR DE NOVO',
+      );
+    });
+    bus.on('run:gameOver', ({ score, timeMs }) => {
+      this.showOutcome('game-over', 'FIM DE JOGO', formatOutcome(score, timeMs), 'RECOMEÇAR');
+    });
+  }
+
+  private showOutcome(
+    from: 'game-over' | 'level-complete',
+    title: string,
+    detail: string,
+    button: string,
+  ): void {
+    this.outcomeFrom = from;
+    this.outcome.classList.toggle('outcome--win', from === 'level-complete');
+    this.outcomeTitle.textContent = title;
+    this.outcomeDetail.textContent = detail;
+    this.outcomeButton.textContent = button;
+    this.outcome.hidden = false;
+    this.setHint('');
+    // Some com o direcional e os botões: com a fase encerrada eles não fazem
+    // nada, e um botão visível que não responde parece o jogo travado.
+    this.touch.setVisible(false);
+  }
+
+  private clearHintLater(): void {
+    window.clearTimeout(this.hintTimer);
+    this.hintTimer = window.setTimeout(() => this.setHint(''), 1600);
   }
 
   setHint(text: string): void {
@@ -97,6 +176,17 @@ export class UiRoot {
     }
   }
 
+  /**
+   * Vidas como ícones, e o número só a partir de 6.
+   *
+   * Uma fileira de 9 bonecos ocupa mais espaço do que informa; até 5 o jogador
+   * lê a quantidade sem contar, que é o ponto.
+   */
+  private renderLives(lives: number): void {
+    if (lives <= 0) this.hudLives.textContent = 'VIDAS —';
+    else this.hudLives.textContent = lives > 5 ? `VIDAS ×${lives}` : `VIDAS ${'▮'.repeat(lives)}`;
+  }
+
   setTouchEnabled(enabled: boolean): void {
     this.touchEnabled = enabled;
     this.touch.setVisible(enabled);
@@ -112,6 +202,13 @@ export class UiRoot {
     if (blocked) this.touch.setVisible(false);
     else this.touch.setVisible(this.touchEnabled);
   }
+}
+
+function formatOutcome(score: number, timeMs: number): string {
+  const total = Math.floor(timeMs / 1000);
+  const mm = String(Math.floor(total / 60)).padStart(2, '0');
+  const ss = String(total % 60).padStart(2, '0');
+  return `PONTOS ${String(score).padStart(6, '0')}  ·  TEMPO ${mm}:${ss}`;
 }
 
 const WEAPON_LABEL: Record<string, string> = {

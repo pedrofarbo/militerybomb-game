@@ -11,6 +11,7 @@ import './ui/styles/ui.css';
 
 import { QUALITY, WORLD, type QualityLevel } from './core/config/tuning';
 import { createEventBus } from './core/events/bus';
+import { createRunState } from './core/progression/run-state';
 import { KeyValueSaveRepository, MemoryStore } from './core/save/repository';
 import { computeLogicalSize, isPortrait } from './game/boot/scale';
 import { InputManager } from './game/input/InputManager';
@@ -85,9 +86,19 @@ async function bootstrap(): Promise<void> {
     scene: [PreloadScene, LevelScene],
   });
 
+  /* A tentativa nasce AQUI, não na cena: `scene.restart()` — que é como uma
+     vida perdida devolve os inimigos à fase — destrói tudo o que pertence à
+     cena, e o placar precisa sobreviver exatamente a isso. */
+  const run = createRunState('level-01', performance.now());
+
+  // `?spawn=120` entra direto naquela coluna. Ferramenta de desenvolvimento:
+  // ajustar o fim da fase sem rejogar o mapa inteiro antes de cada tentativa.
+  const spawnParam = Number(params.get('spawn'));
+  const spawnTileX = Number.isFinite(spawnParam) && params.has('spawn') ? spawnParam : undefined;
+
   // Injeção de dependências pelo registry: a LevelScene lê no `init`, então
   // não precisamos interceptar o start de cena nem criar singletons globais.
-  game.registry.set(LEVEL_DEPS_KEY, { input, bus, debug });
+  game.registry.set(LEVEL_DEPS_KEY, { input, bus, debug, run, spawnTileX });
 
   /* ── Escala e ancoragem da UI ── */
 

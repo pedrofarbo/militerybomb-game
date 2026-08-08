@@ -19,6 +19,19 @@ export interface GameEventMap {
   'ammo:changed': { ammo: number | 'infinite' };
   'grenades:changed': { count: number };
   'score:changed': { score: number; delta: number };
+  'lives:changed': { lives: number; delta: number };
+  /** Fim da tentativa: acabaram as vidas. `score` é o total antes de zerar. */
+  'run:gameOver': { levelId: string; score: number; timeMs: number };
+  /** Tentativa nova começando (start, continue depois do game over). */
+  'run:started': { levelId: string; lives: number; score: number };
+  /**
+   * COMANDO, não notificação: a UI pede, a fase obedece.
+   *
+   * O bus é o único canal entre DOM e gameplay, e é bidirecional de propósito —
+   * a alternativa seria a UI segurar uma referência à Scene, que é exatamente o
+   * acoplamento que a fronteira `core`/`game`/`ui` existe para evitar.
+   */
+  'run:restartRequested': { from: 'game-over' | 'level-complete' };
   'enemy:killed': { typeId: string; x: number; y: number };
   'checkpoint:reached': { id: string };
   'level:complete': { levelId: string; timeMs: number; score: number };

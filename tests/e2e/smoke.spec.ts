@@ -22,6 +22,8 @@ interface CombatReadout {
   enemiesTotal: number;
   destructibles: number;
   score: number;
+  lives: number;
+  phase: string;
   enemyStates: string;
 }
 
@@ -54,6 +56,8 @@ async function readCombat(page: Page): Promise<CombatReadout> {
     enemiesTotal: Number(/inimigos \d+\/(\d+)/.exec(text)?.[1] ?? NaN),
     destructibles: Number(/destrutíveis (\d+)/.exec(text)?.[1] ?? NaN),
     score: Number(/score\s+(\d+)/.exec(text)?.[1] ?? NaN),
+    lives: Number(/vidas (\d+)/.exec(text)?.[1] ?? NaN),
+    phase: /fase:([\w-]+)/.exec(text)?.[1] ?? '',
     enemyStates: [...text.matchAll(/(soldier|heavy|turret):(\w+)/g)]
       .map((m) => `${m[1]}:${m[2]}`)
       .join(' '),
@@ -78,13 +82,13 @@ async function advanceToFirstEnemy(page: Page, targetX: number): Promise<boolean
   return (await readPlayer(page)).x >= targetX;
 }
 
-async function boot(page: Page): Promise<string[]> {
+async function boot(page: Page, query = ''): Promise<string[]> {
   const problems: string[] = [];
   page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
   page.on('response', (r) => {
     if (r.status() >= 400) problems.push(`HTTP ${r.status()} ${r.url()}`);
   });
-  await page.goto('/?debug=1');
+  await page.goto(`/?debug=1${query}`);
   await expect(page.locator('canvas')).toBeVisible();
   // Espera o carregamento dos atlas e o primeiro frame da fase.
   await expect.poll(async () => (await readPlayer(page)).state, { timeout: 20_000 }).not.toBe('');
@@ -247,6 +251,119 @@ test('cair num vão devolve o player ao início da fase', async ({ page }) => {
 
   const respawned = await readPlayer(page);
   expect(Math.abs(respawned.x - spawn.x)).toBeLessThan(60);
+});
+
+/* ───────────────────── Vidas, fim de fase e recomeço ───────────────────── */
+
+/** Corre para a direita até morrer. Com `?spawn=35` o primeiro vão fica a ~70 px. */
+async function fallIntoPit(page: Page, livesBefore: number): Promise<void> {
+  await page.keyboard.down('d');
+  await expect
+    .poll(async () => (await readCombat(page)).lives, { timeout: 20_000 })
+    .toBeLessThan(livesBefore);
+  await page.keyboard.up('d');
+}
+
+/**
+ * O BUG RELATADO: morrer devolvia o jogador ao início com o mapa já limpo —
+ * inimigos mortos continuavam mortos e a pontuação seguia subindo, sem que
+ * nada custasse nada. Este teste cobre os dois lados: o mundo VOLTA, a
+ * pontuação NÃO — ela é da tentativa, não da fase.
+ */
+test('morrer custa uma vida, devolve os inimigos e preserva a pontuação', async ({ page }) => {
+  await boot(page, '&spawn=35');
+
+  const start = await readCombat(page);
+  expect(start.lives).toBe(3);
+  expect(start.enemiesAlive).toBe(start.enemiesTotal);
+
+  // Mata o soldado que está logo à frente, para haver pontuação a preservar.
+  await page.keyboard.press('q'); // metralhadora
+  await page.keyboard.down('j');
+  await expect
+    .poll(async () => (await readCombat(page)).enemiesAlive, { timeout: 20_000 })
+    .toBeLessThan(start.enemiesTotal);
+  await page.keyboard.up('j');
+
+  const scored = await readCombat(page);
+  expect(scored.score).toBeGreaterThan(0);
+
+  await fallIntoPit(page, start.lives);
+
+  await expect
+    .poll(async () => (await readCombat(page)).enemiesAlive, { timeout: 10_000 })
+    .toBe(start.enemiesTotal);
+
+  const after = await readCombat(page);
+  expect(after.lives).toBe(start.lives - 1);
+  expect(after.score).toBe(scored.score);
+  expect(after.phase).toBe('playing');
+});
+
+/**
+ * Sem vidas, o jogo TERMINA — em vez de reiniciar em silêncio para sempre, que
+ * era o comportamento antigo. E recomeçar dali zera o placar.
+ */
+test('acabar as vidas dá fim de jogo, e recomeçar zera o placar', async ({ page }) => {
+  await boot(page, '&spawn=35');
+  const outcome = page.locator('.outcome');
+  await expect(outcome).toBeHidden();
+
+  for (let lives = 3; lives > 0; lives--) {
+    await expect.poll(async () => (await readCombat(page)).lives, { timeout: 20_000 }).toBe(lives);
+    await fallIntoPit(page, lives);
+  }
+
+  await expect(outcome).toBeVisible({ timeout: 10_000 });
+  await expect(outcome).toContainText('FIM DE JOGO');
+  expect((await readCombat(page)).phase).toBe('game-over');
+
+  await page.locator('.outcome__button').click();
+
+  await expect(outcome).toBeHidden({ timeout: 10_000 });
+  const fresh = await readCombat(page);
+  expect(fresh.lives).toBe(3);
+  expect(fresh.score).toBe(0);
+  expect(fresh.enemiesAlive).toBe(fresh.enemiesTotal);
+});
+
+/**
+ * O OUTRO BUG RELATADO: a fase não tinha fim. Quem chegava ao lado direito do
+ * mapa saía do mundo, caía no vazio e morria. Agora existe um portão.
+ */
+test('chegar ao portão termina a fase em vez de cair no vazio', async ({ page }) => {
+  const problems = await boot(page, '&spawn=121');
+  const outcome = page.locator('.outcome');
+
+  await page.keyboard.down('d');
+  await expect(outcome).toBeVisible({ timeout: 25_000 });
+  await page.keyboard.up('d');
+
+  await expect(outcome).toContainText('FASE COMPLETA');
+  const done = await readCombat(page);
+  expect(done.phase).toBe('complete');
+  expect(done.lives).toBe(3); // terminou sem morrer no caminho
+  expect(problems).toEqual([]);
+});
+
+/** A borda do mundo é sólida: nem correndo o jogador sai do mapa pela direita. */
+test('o player não atravessa a borda direita do mundo', async ({ page }) => {
+  await boot(page, '&spawn=129');
+  const WORLD_WIDTH = 132 * 16;
+
+  await page.keyboard.down('d');
+  await page.waitForTimeout(2500);
+  await page.keyboard.up('d');
+
+  const player = await readPlayer(page);
+  expect(player.x).toBeLessThan(WORLD_WIDTH);
+  expect(player.y).toBeLessThanOrEqual(480);
+});
+
+test('o HUD mostra as vidas restantes', async ({ page }) => {
+  await boot(page);
+  await expect(page.locator('.hud-lives')).toContainText('VIDAS');
+  expect(await page.locator('.hud-lives').textContent()).toBe('VIDAS ▮▮▮');
 });
 
 test('a fase nasce povoada de inimigos e destrutíveis', async ({ page }) => {

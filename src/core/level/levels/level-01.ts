@@ -22,7 +22,12 @@
  *               É a rota alta opcional, e é o que faz a câmera trabalhar em Y
  *               — o mundo tem 480 px de altura para 360 px de viewport.
  *   col 96–113  descida escalonada até o mirante
- *   col 114+    queda controlada e área final
+ *   col 114–126 queda controlada e área final
+ *   col 127     PORTÃO DE EXTRAÇÃO — encostar nele termina a fase
+ *
+ * O portão fica 4 colunas antes da borda do mundo, e não NA borda: quem corre
+ * segurando → precisa de espaço para o gatilho disparar antes de bater no
+ * limite. Sem ele o jogador simplesmente saía do mapa e caía no vazio.
  *
  * A subida entre plataformas é sempre de 3 tiles (48 px). O ápice do pulo é
  * 64 px, mas no ápice a velocidade vertical é ZERO — uma plataforma exatamente
@@ -110,6 +115,9 @@ export const LEVEL_01: LevelSource = {
     // ── Área final (col 114+)
     { type: 'crate', tileX: 120, tileY: 24 },
     { type: 'soldier', tileX: 124, tileY: 24, facing: -1, patrolTiles: 4 },
+
+    // ── Fim da fase
+    { type: 'exit', tileX: 127, tileY: 24 },
   ],
   parallax: [
     { image: 'bg.bg_far', scrollFactor: 0.15, offsetY: 0 },

@@ -9,11 +9,25 @@
 
 import Phaser from 'phaser';
 import { PLAYER, WORLD, type QualityLevel } from '../../core/config/tuning';
-import { ONE_WAY_TILES, parseLevel } from '../../core/level/parse';
+import { findExit, ONE_WAY_TILES, parseLevel } from '../../core/level/parse';
 import { LEVEL_01 } from '../../core/level/levels/level-01';
-import type { LevelDef, LevelEntityType } from '../../core/level/schema';
+import {
+  DESTRUCTIBLE_ENTITY_TYPES,
+  ENEMY_ENTITY_TYPES,
+  type LevelDef,
+  type LevelEntity,
+} from '../../core/level/schema';
+import {
+  addScore,
+  createScoreResult,
+  elapsedMs,
+  loseLife,
+  resetRun,
+  type RunState,
+} from '../../core/progression/run-state';
 import { createRng } from '../../core/math';
-import type { GameEventBus } from '../../core/events/bus';
+import { Action } from '../../core/input/actions';
+import type { GameEventBus, Unsubscribe } from '../../core/events/bus';
 import type { ShotRequest, WeaponId } from '../../core/weapons/weapon-def';
 import { WEAPONS } from '../../core/weapons/weapons.data';
 import { hasLineOfSight } from '../../core/combat/overlap';
@@ -29,7 +43,7 @@ import { Projectile } from '../entities/Projectile';
 import { Pool } from '../systems/Pool';
 import { CombatSystem } from '../systems/CombatSystem';
 import { registerCollisions } from '../systems/CollisionMatrix';
-import { FxService } from '../fx/FxService';
+import { DEPTH_ACTORS, FxService } from '../fx/FxService';
 import { CameraDirector } from '../camera/CameraDirector';
 import { buildLevel, updateParallax, type BuiltLevel } from '../level/LevelBuilder';
 import type { InputManager } from '../input/InputManager';
@@ -39,6 +53,20 @@ export interface LevelSceneDeps {
   input: InputManager;
   bus: GameEventBus;
   debug: DebugService;
+  /**
+   * A TENTATIVA — vidas e pontos. Vive FORA da cena de propósito: reiniciar a
+   * fase destrói e recria tudo o que é da cena, e é justamente isso que não
+   * pode acontecer com o placar entre uma vida e outra.
+   */
+  run: RunState;
+  /**
+   * Coluna de entrada alternativa, em tiles (`?spawn=120`).
+   *
+   * Ferramenta de desenvolvimento: ajustar o fim da fase sem rejogar 2000 px
+   * de mapa antes de cada tentativa. Só vale em colunas sobre o chão principal
+   * — a altura continua sendo a do spawn declarado na fase.
+   */
+  spawnTileX?: number;
 }
 
 /** Chave no registry do jogo. Evita singleton global e evita passar deps por
@@ -57,8 +85,22 @@ const GRENADE_POOL = 8;
 const CAMERA_TARGET_OFFSET_Y = 24;
 /** Inimigos além desta distância da câmera não pensam. */
 const AI_ACTIVE_MARGIN_PX = 160;
+/** Meia-largura e altura da zona de gatilho da saída, em px. */
+const EXIT_TRIGGER_HALF_WIDTH = 22;
+const EXIT_TRIGGER_HEIGHT = 96;
+/** Espera antes de aceitar "recomeçar" — impede reiniciar por um tiro perdido. */
+const OUTCOME_INPUT_LOCK_MS = 700;
+/** O portão fica atrás dos atores: o jogador entra NELE, não passa na frente. */
+const DEPTH_EXIT = DEPTH_ACTORS - 2;
 
-const ENEMY_TYPES: ReadonlySet<LevelEntityType> = new Set(['soldier', 'heavy', 'turret']);
+/**
+ * Em que ponto da fase estamos.
+ *
+ * Existe porque "morto" e "acabou" não são o mesmo estado, e tratar os dois
+ * com um booleano foi como a fase conseguia terminar caindo no vazio: sem um
+ * estado de fim, o único fim possível era a morte.
+ */
+type LevelPhase = 'playing' | 'dying' | 'complete' | 'game-over' | 'restarting';
 
 export class LevelScene extends Phaser.Scene {
   private deps!: LevelSceneDeps;
@@ -82,6 +124,8 @@ export class LevelScene extends Phaser.Scene {
   private readonly destructibles: Destructible[] = [];
   private readonly activeShots: Projectile[] = [];
   private readonly activeGrenades: GrenadeActor[] = [];
+  private readonly subscriptions: Unsubscribe[] = [];
+  private readonly scoreResult = createScoreResult();
   private readonly enemyDamage: DamageInfo = {
     amount: 0,
     kind: 'bullet',
@@ -93,8 +137,11 @@ export class LevelScene extends Phaser.Scene {
 
   private accumulatorMs = 0;
   private quality: QualityLevel = 'high';
-  private score = 0;
-  private respawnTimerMs = 0;
+  private phase: LevelPhase = 'playing';
+  private deathTimerMs = 0;
+  private outcomeLockMs = 0;
+  private exit!: LevelEntity;
+  private spawn!: { x: number; y: number };
   private random = createRng(0x5eed);
 
   constructor() {
@@ -108,9 +155,21 @@ export class LevelScene extends Phaser.Scene {
   }
 
   create(): void {
+    /* `scene.restart()` roda `init` + `create` NA MESMA INSTÂNCIA — o
+       construtor não roda de novo. Tudo o que é campo de instância precisa
+       voltar ao valor inicial aqui, à mão; esquecer um deles é como o jogo
+       começaria com os inimigos da vida anterior em lista mas destruídos. */
+    this.resetSceneState();
+
     this.def = parseLevel(LEVEL_01);
+    this.exit = findExit(this.def);
+    this.spawn = this.resolveSpawn();
     this.built = buildLevel(this, this.def);
     this.physics.world.setBounds(0, 0, this.built.widthPx, this.built.heightPx + 256);
+    /* Paredes invisíveis SÓ nas laterais. Em cima e embaixo o limite continua
+       aberto: é a queda para fora do mundo que mata quem erra um vão, e o teto
+       fechado prenderia o pulo do alto da torre. */
+    this.physics.world.setBoundsCollision(true, true, false, false);
     this.cameras.main.setBackgroundColor(0x0d0b12);
 
     this.fx = new FxService(this);
@@ -129,22 +188,44 @@ export class LevelScene extends Phaser.Scene {
 
     this.wireCollisions();
 
-    this.director = new CameraDirector(this.cameras.main, this.def.spawn.x, this.def.spawn.y);
+    this.director = new CameraDirector(this.cameras.main, this.spawn.x, this.spawn.y);
     this.director.setBounds(this.built.widthPx, this.built.heightPx);
-    this.director.snapTo(this.def.spawn.x, this.def.spawn.y - 40);
+    this.director.snapTo(this.spawn.x, this.spawn.y - 40);
 
     // Apresentação e câmera rodam DEPOIS da física, senão ficam um frame atrás
     // da posição real e a imagem treme.
     this.events.on(Phaser.Scenes.Events.POST_UPDATE, this.postUpdate, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.events.off(Phaser.Scenes.Events.POST_UPDATE, this.postUpdate, this);
+      for (const off of this.subscriptions) off();
+      this.subscriptions.length = 0;
     });
+
+    /* A UI pede o recomeço; a fase decide o que isso significa. Desinscrever no
+       SHUTDOWN não é zelo: sem isso cada morte deixaria mais um handler vivo, e
+       depois de três vidas um clique reiniciaria a cena três vezes. */
+    this.subscriptions.push(
+      this.deps.bus.on('run:restartRequested', () => this.handleRestartRequest()),
+    );
 
     this.registerDebugPanels();
     this.announceInitialState();
   }
 
   /* ─────────────────────────── Construção ─────────────────────────── */
+
+  private resetSceneState(): void {
+    this.enemies.length = 0;
+    this.destructibles.length = 0;
+    this.activeShots.length = 0;
+    this.activeGrenades.length = 0;
+    this.accumulatorMs = 0;
+    this.deathTimerMs = 0;
+    this.outcomeLockMs = 0;
+    this.phase = 'playing';
+    // Semente fixa: a mesma tentativa vista duas vezes se comporta igual.
+    this.random = createRng(0x5eed);
+  }
 
   private createPools(): void {
     this.playerShotGroup = this.add.group();
@@ -172,11 +253,17 @@ export class LevelScene extends Phaser.Scene {
     this.destructibleGroup = this.add.group();
   }
 
+  private resolveSpawn(): { x: number; y: number } {
+    const tileX = this.deps.spawnTileX;
+    if (tileX === undefined || tileX < 0 || tileX >= this.def.width) return this.def.spawn;
+    return { x: tileX * this.def.tileWidth + this.def.tileWidth / 2, y: this.def.spawn.y };
+  }
+
   private createPlayer(): void {
     this.player = new PlayerActor(
       this,
-      this.def.spawn.x,
-      this.def.spawn.y,
+      this.spawn.x,
+      this.spawn.y,
       {
         onShots: (shots, weaponId, mx, my, angle) =>
           this.spawnPlayerShots(shots, weaponId, mx, my, angle),
@@ -212,7 +299,12 @@ export class LevelScene extends Phaser.Scene {
     };
 
     for (const entity of this.def.entities) {
-      if (ENEMY_TYPES.has(entity.type)) {
+      if (entity.type === 'exit') {
+        this.createExitMarker(entity);
+        continue;
+      }
+
+      if (ENEMY_ENTITY_TYPES.has(entity.type)) {
         const enemy = new EnemyActor(
           this,
           entity.type as EnemyTypeId,
@@ -236,12 +328,37 @@ export class LevelScene extends Phaser.Scene {
         continue;
       }
 
+      if (!DESTRUCTIBLE_ENTITY_TYPES.has(entity.type)) {
+        throw new Error(`Tipo de entidade sem construtor na cena: "${entity.type}"`);
+      }
+
       const target = new Destructible(this, entity.type as DestructibleTypeId, entity.x, entity.y, {
         onDestroyed: (source) => this.onDestructibleDestroyed(source),
       });
       this.destructibles.push(target);
       this.destructibleGroup.add(target.sprite);
     }
+  }
+
+  /**
+   * O portão de extração. É só apresentação: o gatilho é uma checagem de caixa
+   * em `checkExit`, não um corpo Arcade.
+   *
+   * Um overlap de física precisaria de um corpo, de um grupo e de uma entrada
+   * na matriz de colisão, e ainda assim poderia ser atravessado num frame de
+   * queda longa. Uma caixa de 44 px conferida a cada passo fixo não pode.
+   */
+  private createExitMarker(entity: LevelEntity): void {
+    const art = SPRITES['prop.gate.open'];
+    const gate = this.add.sprite(entity.x, entity.y, art.atlas, art.frame);
+    gate.setOrigin(0.5, 1);
+    gate.setDepth(DEPTH_EXIT);
+
+    // Baliza piscando no vão do portão: é o que faz o jogador ir até lá.
+    const beacon = this.add.sprite(entity.x, entity.y - 24, 'env', 'prop/checkpoint/on/0');
+    beacon.setOrigin(0.5, 1);
+    beacon.setDepth(DEPTH_EXIT + 1);
+    beacon.play('prop.checkpoint.on', true);
   }
 
   private wireCollisions(): void {
@@ -273,11 +390,14 @@ export class LevelScene extends Phaser.Scene {
 
   private announceInitialState(): void {
     const bus = this.deps.bus;
-    bus.emit('player:spawned', { x: this.def.spawn.x, y: this.def.spawn.y });
+    const run = this.deps.run;
+    bus.emit('run:started', { levelId: run.levelId, lives: run.lives, score: run.score });
+    bus.emit('player:spawned', { x: this.spawn.x, y: this.spawn.y });
     bus.emit('weapon:changed', { weaponId: 'pistol', ammo: 'infinite' });
     bus.emit('player:damaged', { hp: this.player.health.current, max: this.player.health.max });
     bus.emit('grenades:changed', { count: this.player.grenadeCount });
-    bus.emit('score:changed', { score: this.score, delta: 0 });
+    bus.emit('score:changed', { score: run.score, delta: 0 });
+    bus.emit('lives:changed', { lives: run.lives, delta: 0 });
   }
 
   /* ───────────────────────────── Loop ───────────────────────────── */
@@ -304,12 +424,17 @@ export class LevelScene extends Phaser.Scene {
       this.simulate(FIXED_STEP_MS);
       this.accumulatorMs -= FIXED_STEP_MS;
       steps++;
+      // `scene.restart()` só acontece no começo do próximo frame: continuar
+      // simulando aqui rodaria passos numa fase que já foi declarada morta.
+      if (this.phase === 'restarting') break;
     }
     // Travamento longo: descarta o resto em vez de tentar recuperar em rajada.
     if (this.accumulatorMs > FIXED_STEP_MS * MAX_STEPS_PER_FRAME) this.accumulatorMs = 0;
   }
 
   private simulate(dtMs: number): void {
+    if (this.phase === 'restarting') return;
+
     const now = this.time.now;
     this.player.step(this.deps.input.snapshot, now, dtMs);
 
@@ -330,7 +455,10 @@ export class LevelScene extends Phaser.Scene {
 
     this.tickProjectiles(dtMs);
     this.tickGrenades(dtMs);
-    this.tickRespawn(dtMs);
+    this.tickOutOfWorld();
+    this.tickDeath(dtMs);
+    this.checkExit();
+    this.tickOutcomeInput(dtMs);
   }
 
   private postUpdate(_time: number, delta: number): void {
@@ -476,7 +604,7 @@ export class LevelScene extends Phaser.Scene {
     originY: number,
     kind: DamageInfo['kind'],
   ): void {
-    if (this.player.state.dead) return;
+    if (this.phase !== 'playing' || this.player.state.dead) return;
 
     this.enemyDamage.amount = amount;
     this.enemyDamage.kind = kind;
@@ -547,32 +675,123 @@ export class LevelScene extends Phaser.Scene {
     if (index >= 0) this.enemies.splice(index, 1);
   }
 
+  /** A pontuação é da TENTATIVA, não da cena: sobrevive a reiniciar a fase. */
   private addScore(amount: number): void {
-    this.score += amount;
-    this.deps.bus.emit('score:changed', { score: this.score, delta: amount });
+    const run = this.deps.run;
+    addScore(run, amount, this.scoreResult);
+    this.deps.bus.emit('score:changed', { score: run.score, delta: amount });
+    if (this.scoreResult.extraLives > 0) {
+      this.deps.bus.emit('lives:changed', { lives: run.lives, delta: this.scoreResult.extraLives });
+      this.fx.play('fx.marker.checkpoint', this.player.x, this.player.torsoY);
+    }
   }
 
   private onPlayerDied(): void {
-    this.respawnTimerMs = PLAYER.respawnDelayMs;
+    if (this.phase !== 'playing') return;
+    this.phase = 'dying';
+    this.deathTimerMs = PLAYER.respawnDelayMs;
     this.director.shake(0.55);
     this.fx.play('fx.explosion.small', this.player.x, this.player.torsoY);
     this.deps.bus.emit('player:died', { atCheckpointId: null });
   }
 
-  private tickRespawn(dtMs: number): void {
-    // Cair para fora do mundo também mata — sem isto o player some para sempre.
-    if (!this.player.state.dead && this.player.y > this.built.heightPx + 96) {
-      this.damagePlayer(999, this.player.x, this.player.y, 'crush');
+  /** Cair para fora do mundo mata — sem isto o player some para sempre. */
+  private tickOutOfWorld(): void {
+    if (this.phase !== 'playing') return;
+    if (this.player.y <= this.built.heightPx + 96) return;
+    this.damagePlayer(999, this.player.x, this.player.y, 'crush');
+  }
+
+  /**
+   * Desconta a vida quando a animação de morte termina.
+   *
+   * Ainda há vida → a FASE INTEIRA reinicia, com os inimigos de volta. É a
+   * única leitura coerente enquanto não existem checkpoints (Fase 3): voltar
+   * ao início com o mapa já limpo não é "recomeçar", é andar por um cenário
+   * vazio. A pontuação NÃO zera aqui — ela é da tentativa.
+   */
+  private tickDeath(dtMs: number): void {
+    if (this.phase !== 'dying') return;
+
+    this.deathTimerMs -= dtMs;
+    if (this.deathTimerMs > 0) return;
+
+    const run = this.deps.run;
+    const outcome = loseLife(run);
+    this.deps.bus.emit('lives:changed', { lives: run.lives, delta: -1 });
+
+    if (outcome === 'respawn') {
+      this.restartLevel();
       return;
     }
-    if (this.respawnTimerMs <= 0) return;
 
-    this.respawnTimerMs -= dtMs;
-    if (this.respawnTimerMs > 0) return;
+    this.phase = 'game-over';
+    this.outcomeLockMs = OUTCOME_INPUT_LOCK_MS;
+    this.player.setFrozen(true);
+    this.deps.bus.emit('run:gameOver', {
+      levelId: run.levelId,
+      score: run.score,
+      timeMs: elapsedMs(run, this.time.now),
+    });
+  }
 
-    this.player.respawn();
-    this.director.snapTo(this.def.spawn.x, this.def.spawn.y - 40);
-    this.deps.bus.emit('player:spawned', { x: this.def.spawn.x, y: this.def.spawn.y });
+  /* ─────────────────────── Fim de fase e recomeço ────────────────── */
+
+  /**
+   * O gatilho da saída, conferido a cada passo fixo.
+   *
+   * A caixa é generosa na vertical (96 px) porque nada garante que o jogador
+   * chegue andando: com o portão no chão, quem cai de uma plataforma passaria
+   * por dentro dele num único passo se a checagem fosse estreita.
+   */
+  private checkExit(): void {
+    if (this.phase !== 'playing' || this.player.state.dead) return;
+
+    const dx = Math.abs(this.player.x - this.exit.x);
+    const dy = this.exit.y - this.player.y;
+    if (dx > EXIT_TRIGGER_HALF_WIDTH || dy < -8 || dy > EXIT_TRIGGER_HEIGHT) return;
+
+    this.phase = 'complete';
+    this.outcomeLockMs = OUTCOME_INPUT_LOCK_MS;
+    this.player.setFrozen(true);
+    this.fx.play('fx.marker.checkpoint', this.exit.x, this.exit.y - 40);
+
+    const run = this.deps.run;
+    this.deps.bus.emit('level:complete', {
+      levelId: run.levelId,
+      timeMs: elapsedMs(run, this.time.now),
+      score: run.score,
+    });
+  }
+
+  /**
+   * Recomeçar também funciona no teclado e no gamepad.
+   *
+   * O botão em DOM é o caminho principal (é o único que existe no touch), mas
+   * exigir um clique de quem estava com as duas mãos no teclado é atrito puro.
+   */
+  private tickOutcomeInput(dtMs: number): void {
+    if (this.phase !== 'complete' && this.phase !== 'game-over') return;
+    if (this.outcomeLockMs > 0) {
+      this.outcomeLockMs -= dtMs;
+      return;
+    }
+    const input = this.deps.input.snapshot;
+    if (input.justPressed(Action.Jump) || input.justPressed(Action.Shoot)) {
+      this.handleRestartRequest();
+    }
+  }
+
+  private handleRestartRequest(): void {
+    if (this.phase !== 'complete' && this.phase !== 'game-over') return;
+    // Fim de tentativa zera pontos e devolve as vidas; fim de fase só recomeça.
+    if (this.phase === 'game-over') resetRun(this.deps.run, this.time.now);
+    this.restartLevel();
+  }
+
+  private restartLevel(): void {
+    this.phase = 'restarting';
+    this.scene.restart();
   }
 
   /* ─────────────────────────── Consultas ────────────────────────── */
@@ -633,9 +852,10 @@ export class LevelScene extends Phaser.Scene {
         .slice(0, 4)
         .map((e) => `${e.def.id}:${e.brain.state}`)
         .join(' ');
+      const run = this.deps.run;
       return [
         `inimigos ${alive}/${this.enemies.length}  destrutíveis ${this.destructibles.length}`,
-        `score    ${this.score}`,
+        `score    ${run.score}  vidas ${run.lives}  fase:${this.phase}`,
         states || '(nenhum ativo)',
       ].join('\n');
     });

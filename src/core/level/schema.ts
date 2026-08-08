@@ -17,8 +17,27 @@ export interface ParallaxLayerDef {
   readonly foreground?: boolean;
 }
 
-/** Tipos que uma fase pode posicionar. */
-export type LevelEntityType = 'soldier' | 'heavy' | 'turret' | 'crate' | 'barrel' | 'generator';
+/** Tipos que uma fase pode posicionar, agrupados por como a cena os constrói. */
+export type EnemyEntityType = 'soldier' | 'heavy' | 'turret';
+export type DestructibleEntityType = 'crate' | 'barrel' | 'generator';
+/** Marcadores: não têm vida nem colisão sólida, só disparam algo ao encostar. */
+export type MarkerEntityType = 'exit';
+export type LevelEntityType = EnemyEntityType | DestructibleEntityType | MarkerEntityType;
+
+/* Conjuntos em runtime para a cena decidir o que instanciar. Ficam aqui, ao
+   lado dos tipos, porque esquecer de atualizar um dos dois é como um tipo novo
+   vira "destrutível" por engano — foi assim que `exit` quase virou um caixote. */
+export const ENEMY_ENTITY_TYPES: ReadonlySet<LevelEntityType> = new Set<LevelEntityType>([
+  'soldier',
+  'heavy',
+  'turret',
+]);
+export const DESTRUCTIBLE_ENTITY_TYPES: ReadonlySet<LevelEntityType> = new Set<LevelEntityType>([
+  'crate',
+  'barrel',
+  'generator',
+]);
+export const MARKER_ENTITY_TYPES: ReadonlySet<LevelEntityType> = new Set<LevelEntityType>(['exit']);
 
 /** Posicionamento na fonte da fase: coordenadas em TILES, legíveis à mão. */
 export interface LevelEntitySource {
