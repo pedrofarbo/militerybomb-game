@@ -32,6 +32,17 @@ import {
   type WeaponState,
 } from '../../core/weapons/weapon-def';
 import { WEAPONS, WEAPON_ORDER } from '../../core/weapons/weapons.data';
+import {
+  applyDamage,
+  createDamageResult,
+  createHealth,
+  tickHealth,
+  type DamageInfo,
+  type DamageResult,
+  type HealthState,
+} from '../../core/combat/health';
+import { GRENADE } from '../../core/combat/explosives';
+import type { Aabb } from '../../core/combat/overlap';
 import { ART_METRICS } from '../../assets/manifest';
 import { LOCKED_ANIMS } from '../anim/AnimationRegistry';
 import { DEPTH_PLAYER } from '../fx/FxService';
@@ -48,6 +59,10 @@ export interface PlayerCallbacks {
   onLand(x: number, y: number, fallSpeed: number): void;
   onWeaponChanged(weaponId: WeaponId, ammo: number | 'infinite'): void;
   onShake(trauma: number): void;
+  onGrenadeThrown(x: number, y: number, angleRad: number, facing: -1 | 1): void;
+  onGrenadesChanged(count: number): void;
+  onHealthChanged(current: number, max: number): void;
+  onDied(): void;
   /**
    * A cena responde se o tile logo abaixo dos pés é uma plataforma de sentido
    * único. Só ela conhece o tilemap; o Actor só precisa da resposta.
@@ -73,6 +88,11 @@ export class PlayerActor {
   private spawnX = 0;
   private spawnY = 0;
   private dropThroughMs = 0;
+  readonly health: HealthState;
+  private readonly damageResult = createDamageResult();
+  private readonly box: Aabb = { x: 0, y: 0, w: 0, h: 0 };
+  private grenades: number = GRENADE.maxCount;
+  private grenadeReadyAtMs = 0;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -82,6 +102,7 @@ export class PlayerActor {
     random: () => number,
   ) {
     this.state = createPlayerState(PLAYER.maxHealth);
+    this.health = createHealth(PLAYER.maxHealth, PLAYER.invulnMs);
     this.weapon = createWeaponState(WEAPONS.pistol);
 
     this.sprite = scene.physics.add.sprite(x, y, 'characters', 'dara/idle/0');
@@ -122,7 +143,13 @@ export class PlayerActor {
 
   respawn(): void {
     resetPlayerState(this.state, PLAYER.maxHealth);
+    this.health.current = this.health.max;
+    this.health.dead = false;
+    this.health.invulnMs = PLAYER.invulnMs;
     this.state.invulnMs = PLAYER.invulnMs;
+    this.grenades = GRENADE.maxCount;
+    this.callbacks.onHealthChanged(this.health.current, this.health.max);
+    this.callbacks.onGrenadesChanged(this.grenades);
 
     this.dropThroughMs = 0;
     const body = this.sprite.body as Phaser.Physics.Arcade.Body;
@@ -149,6 +176,9 @@ export class PlayerActor {
     s.blockedSide = body.blocked.left ? -1 : body.blocked.right ? 1 : 0;
     if (body.blocked.up && s.vy < 0) s.vy = 0;
 
+    tickHealth(this.health, dtMs);
+    this.state.invulnMs = this.health.invulnMs;
+
     const dropping = this.updateDropThrough(input, dtMs);
 
     this.movementInput.axisX = input.axisX;
@@ -171,6 +201,71 @@ export class PlayerActor {
 
     if (input.justPressed(Action.SwitchWeapon)) this.cycleWeapon();
     this.updateFiring(input, aim.angleRad, nowMs);
+    this.updateGrenade(input, aim.angleRad, nowMs);
+  }
+
+  /* ─────────────────────────── Granadas ─────────────────────────── */
+
+  private updateGrenade(input: InputSnapshot, angleRad: number, nowMs: number): void {
+    if (!input.justPressed(Action.Grenade)) return;
+    if (this.state.dead || this.state.hurtMs > 0) return;
+    if (this.grenades <= 0 || nowMs < this.grenadeReadyAtMs) return;
+
+    this.grenades--;
+    this.grenadeReadyAtMs = nowMs + GRENADE.cooldownMs;
+    this.callbacks.onGrenadeThrown(
+      this.sprite.x + PLAYER.shoulderX * this.state.facing,
+      this.sprite.y + PLAYER.shoulderY,
+      angleRad,
+      this.state.facing,
+    );
+    this.callbacks.onGrenadesChanged(this.grenades);
+  }
+
+  get grenadeCount(): number {
+    return this.grenades;
+  }
+
+  addGrenades(amount: number): void {
+    this.grenades = Math.min(GRENADE.maxCount, this.grenades + amount);
+    this.callbacks.onGrenadesChanged(this.grenades);
+  }
+
+  /* ──────────────────────────── Dano ────────────────────────────── */
+
+  /** Caixa lógica em coordenadas de mundo, para consultas de explosão. */
+  get bounds(): Aabb {
+    const body = this.sprite.body as Phaser.Physics.Arcade.Body;
+    this.box.x = body.x;
+    this.box.y = body.y;
+    this.box.w = body.width;
+    this.box.h = body.height;
+    return this.box;
+  }
+
+  get torsoY(): number {
+    return this.sprite.y - PLAYER.bodyHeight * 0.55;
+  }
+
+  takeDamage(info: DamageInfo, nowMs: number): DamageResult {
+    const result = this.damageResult;
+    applyDamage(this.health, info, this.sprite.x, this.torsoY, nowMs, result);
+    if (result.applied <= 0) return result;
+
+    this.state.health = this.health.current;
+    this.state.invulnMs = this.health.invulnMs;
+    this.state.hurtMs = PLAYER.hurtMs;
+    // Empurrão curto e um pulinho: comunica o golpe sem tirar o controle.
+    this.state.vx = result.knockbackX;
+    this.state.vy = Math.min(this.state.vy, -110);
+    this.callbacks.onHealthChanged(this.health.current, this.health.max);
+
+    if (result.killed) {
+      this.state.dead = true;
+      this.state.firing = false;
+      this.callbacks.onDied();
+    }
+    return result;
   }
 
   /** Roda uma vez por frame, depois da física: só apresentação. */

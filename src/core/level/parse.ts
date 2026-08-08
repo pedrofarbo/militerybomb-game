@@ -7,7 +7,7 @@
  * "esqueci de trocar o tile da quina".
  */
 
-import { LevelParseError, type LevelDef, type LevelSource } from './schema';
+import { LevelParseError, type LevelDef, type LevelEntity, type LevelSource } from './schema';
 
 /** Índices do tileset. Espelham `public/assets/levels/tileset.json`. */
 export const TILE = {
@@ -113,8 +113,44 @@ export function parseLevel(src: LevelSource): LevelDef {
       y: (sy + 1) * src.tileHeight,
     },
     parallax: src.parallax,
+    entities: parseEntities(src, width, height, tiles),
     bounds: { width: width * src.tileWidth, height: height * src.tileHeight },
   };
+}
+
+function parseEntities(
+  src: LevelSource,
+  width: number,
+  height: number,
+  tiles: readonly number[],
+): LevelEntity[] {
+  return (src.entities ?? []).map((entity, index) => {
+    if (entity.tileX < 0 || entity.tileY < 0 || entity.tileX >= width || entity.tileY >= height) {
+      throw new LevelParseError(
+        `entidade ${index} (${entity.type}) em (${entity.tileX}, ${entity.tileY}) está fora do mapa`,
+      );
+    }
+    // Posicionar uma entidade dentro de parede é erro de autoria, e sem esta
+    // checagem ela aparece presa no cenário só quando alguém joga a fase.
+    const tile = tiles[entity.tileY * width + entity.tileX]!;
+    if (!NON_SOLID.has(tile)) {
+      throw new LevelParseError(
+        `entidade ${index} (${entity.type}) em (${entity.tileX}, ${entity.tileY}) está dentro de um tile sólido`,
+      );
+    }
+    const x = entity.tileX * src.tileWidth + src.tileWidth / 2;
+    // Pés apoiados na BASE do tile indicado — mesma convenção do spawn.
+    const y = (entity.tileY + 1) * src.tileHeight;
+    const patrolPx = (entity.patrolTiles ?? 0) * src.tileWidth;
+    return {
+      type: entity.type,
+      x,
+      y,
+      facing: entity.facing ?? 1,
+      patrolLeft: patrolPx > 0 ? x - patrolPx : 0,
+      patrolRight: patrolPx > 0 ? x + patrolPx : 0,
+    };
+  });
 }
 
 type Sampler = (x: number, y: number) => string;

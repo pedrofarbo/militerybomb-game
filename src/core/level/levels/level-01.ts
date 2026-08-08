@@ -71,6 +71,46 @@ export const LEVEL_01: LevelSource = {
     '########################################....######################....##############################################################',
     '########################################....######################....##############################################################',
   ],
+  /**
+   * `tileY` é o tile em cuja BASE os pés se apoiam — mesma convenção do spawn.
+   * A dificuldade sobe por região, e cada encontro tem cobertura ou um barril
+   * por perto: o jogador sempre tem uma resposta além de correr para frente.
+   */
+  entities: [
+    // ── Primeiro contato (col 20–39): um soldado por vez, com caixa de cobertura
+    { type: 'crate', tileX: 18, tileY: 24 },
+    { type: 'soldier', tileX: 26, tileY: 24, facing: -1, patrolTiles: 4 },
+    { type: 'barrel', tileX: 33, tileY: 24 },
+    { type: 'soldier', tileX: 37, tileY: 24, facing: -1, patrolTiles: 2 },
+
+    // ── Depois do primeiro vão (col 44–59): dois soldados e uma torreta alta
+    { type: 'crate', tileX: 46, tileY: 24 },
+    { type: 'barrel', tileX: 48, tileY: 24 },
+    { type: 'soldier', tileX: 50, tileY: 24, facing: -1, patrolTiles: 3 },
+    { type: 'turret', tileX: 55, tileY: 21, facing: -1 },
+
+    // ── Degrau alto (col 60–65)
+    { type: 'soldier', tileX: 62, tileY: 22, facing: -1, patrolTiles: 2 },
+
+    // ── Base da torre (col 70–89): o pesado, com barril para quem entender
+    { type: 'crate', tileX: 77, tileY: 24 },
+    { type: 'barrel', tileX: 82, tileY: 24 },
+    { type: 'heavy', tileX: 87, tileY: 24, facing: -1 },
+    { type: 'turret', tileX: 80, tileY: 18, facing: -1 },
+
+    // ── Escadaria (col 90–101)
+    { type: 'soldier', tileX: 95, tileY: 21, facing: -1, patrolTiles: 2 },
+    { type: 'generator', tileX: 99, tileY: 19 },
+
+    // ── Mirante (col 102–113)
+    { type: 'turret', tileX: 104, tileY: 17, facing: -1 },
+    { type: 'barrel', tileX: 107, tileY: 17 },
+    { type: 'soldier', tileX: 110, tileY: 17, facing: -1, patrolTiles: 3 },
+
+    // ── Área final (col 114+)
+    { type: 'crate', tileX: 120, tileY: 24 },
+    { type: 'soldier', tileX: 124, tileY: 24, facing: -1, patrolTiles: 4 },
+  ],
   parallax: [
     { image: 'bg.bg_far', scrollFactor: 0.15, offsetY: 0 },
     { image: 'bg.bg_near', scrollFactor: 0.35, offsetY: 24 },

@@ -17,6 +17,30 @@ export interface ParallaxLayerDef {
   readonly foreground?: boolean;
 }
 
+/** Tipos que uma fase pode posicionar. */
+export type LevelEntityType = 'soldier' | 'heavy' | 'turret' | 'crate' | 'barrel' | 'generator';
+
+/** Posicionamento na fonte da fase: coordenadas em TILES, legíveis à mão. */
+export interface LevelEntitySource {
+  readonly type: LevelEntityType;
+  readonly tileX: number;
+  /** Tile onde os PÉS ficam apoiados (a base do tile). */
+  readonly tileY: number;
+  readonly facing?: -1 | 1;
+  /** Meia-largura da patrulha, em tiles. Ausente = não patrulha. */
+  readonly patrolTiles?: number;
+}
+
+/** Posicionamento já resolvido em pixels de mundo. */
+export interface LevelEntity {
+  readonly type: LevelEntityType;
+  readonly x: number;
+  readonly y: number;
+  readonly facing: -1 | 1;
+  readonly patrolLeft: number;
+  readonly patrolRight: number;
+}
+
 export interface LevelDef {
   readonly id: string;
   readonly tileWidth: number;
@@ -31,6 +55,7 @@ export interface LevelDef {
   /** Ponto de entrada, em px de mundo (base dos pés). */
   readonly spawn: { readonly x: number; readonly y: number };
   readonly parallax: readonly ParallaxLayerDef[];
+  readonly entities: readonly LevelEntity[];
   /** Limites de câmera e de mundo, em px. */
   readonly bounds: { readonly width: number; readonly height: number };
 }
@@ -43,6 +68,7 @@ export interface LevelSource {
   readonly rows: readonly string[];
   readonly spawnTile: { readonly x: number; readonly y: number };
   readonly parallax: readonly ParallaxLayerDef[];
+  readonly entities?: readonly LevelEntitySource[];
 }
 
 export class LevelParseError extends Error {

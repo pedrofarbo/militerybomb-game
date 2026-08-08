@@ -3,11 +3,10 @@
 Jogo 2D de ação lateral (run & gun) para browser, celular e tablet.
 Phaser 4 + TypeScript + Vite. Single-player.
 
-> **Estado:** Fase 0 (arquitetura) e Fase 1 (protótipo do player) concluídas,
-> incluindo o passe de ajustes. O player corre, pula, mira em 8 direções,
-> atira e desce por plataformas, com teclado, gamepad e touch, numa fase de
-> teste com câmera, parallax, torre de escalada e respawn.
-> Sem inimigos ainda — isso é a Fase 2.
+> **Estado:** Fases 0 (arquitetura), 1 (player) e 2 (combate) concluídas.
+> A fase tem 11 inimigos de 3 tipos, 9 objetos destrutíveis com explosão em
+> cadeia, granadas, dano nos dois sentidos e pontuação.
+> Falta a Fase 3: checkpoint, mini-boss, menus e áudio.
 
 ## Começando
 
@@ -58,8 +57,9 @@ src/
 
 A fronteira `core` ↛ `game` é **aplicada por lint**, não por convenção: um
 import de Phaser dentro de `src/core` quebra o CI. É isso que mantém a
-simulação testável em Node — os 87 testes unitários rodam em ~1 s, sem
-canvas, sem WebGL.
+simulação testável em Node — os 132 testes unitários rodam em ~1 s, sem
+canvas, sem WebGL. A IA dos inimigos inteira é testada assim: "soldado vê o
+jogador → telegrafa antes de atirar" é um teste unitário, não um playtest.
 
 Divisão de responsabilidade com a física: **`core` é dono da velocidade**
 (inclusive gravidade, corte de pulo, coyote time), **o Arcade é dono da posição
@@ -99,9 +99,9 @@ Resolução lógica **640×360** com altura fixa e largura elástica (640–800)
 renderizada 1:1 e ampliada por CSS. Um aparelho 1080p desenha ~288 mil pixels
 por frame em vez de 2 milhões.
 
-Build atual: **~375 KB gzip** no total (Phaser 358 KB + jogo 16 KB + CSS 1,4 KB).
+Build atual: **~383 KB gzip** no total (Phaser 358 KB + jogo 23 KB + CSS 1,6 KB).
 
-Testes: **87 unitários** (~1 s, sem browser) e **16 de browser** (desktop e
+Testes: **132 unitários** (~1 s, sem browser) e **26 de browser** (desktop e
 mobile landscape, contra a build de produção).
 
 ## Originalidade

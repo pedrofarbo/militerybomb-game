@@ -13,6 +13,16 @@ interface PlayerReadout {
   vy: number;
   state: string;
   grounded: boolean;
+  hp: number;
+  grenades: number;
+}
+
+interface CombatReadout {
+  enemiesAlive: number;
+  enemiesTotal: number;
+  destructibles: number;
+  score: number;
+  enemyStates: string;
 }
 
 async function readPlayer(page: Page): Promise<PlayerReadout> {
@@ -30,7 +40,42 @@ async function readPlayer(page: Page): Promise<PlayerReadout> {
     vy: Number(vel?.[2] ?? NaN),
     state: state?.[1] ?? '',
     grounded: ground?.[1] === 'sim',
+    hp: Number(/vida\s+(\d+)/.exec(text)?.[1] ?? NaN),
+    grenades: Number(/granadas:(\d+)/.exec(text)?.[1] ?? NaN),
   };
+}
+
+async function readCombat(page: Page): Promise<CombatReadout> {
+  const text = await page.evaluate(
+    () => document.querySelector('.debug-overlay')?.textContent ?? '',
+  );
+  return {
+    enemiesAlive: Number(/inimigos (\d+)\//.exec(text)?.[1] ?? NaN),
+    enemiesTotal: Number(/inimigos \d+\/(\d+)/.exec(text)?.[1] ?? NaN),
+    destructibles: Number(/destrutíveis (\d+)/.exec(text)?.[1] ?? NaN),
+    score: Number(/score\s+(\d+)/.exec(text)?.[1] ?? NaN),
+    enemyStates: [...text.matchAll(/(soldier|heavy|turret):(\w+)/g)]
+      .map((m) => `${m[1]}:${m[2]}`)
+      .join(' '),
+  };
+}
+
+/**
+ * Avança até o primeiro soldado pulando o caixote que bloqueia o chão.
+ * Devolve `true` se chegou; os testes de combate dependem disto.
+ */
+async function advanceToFirstEnemy(page: Page, targetX: number): Promise<boolean> {
+  for (let i = 0; i < 70; i++) {
+    if ((await readPlayer(page)).x >= targetX) return true;
+    await page.keyboard.down('d');
+    await page.keyboard.down('Space');
+    await page.waitForTimeout(120);
+    await page.keyboard.up('Space');
+    await page.waitForTimeout(160);
+    await page.keyboard.up('d');
+    await page.waitForTimeout(60);
+  }
+  return (await readPlayer(page)).x >= targetX;
 }
 
 async function boot(page: Page): Promise<string[]> {
@@ -120,10 +165,7 @@ test('atirar cria projétil e a troca de arma muda a munição', async ({ page }
   const activeProjectiles = async (): Promise<number> =>
     Number(
       await page.evaluate(
-        () =>
-          /projéteis (\d+)\//.exec(
-            document.querySelector('.debug-overlay')?.textContent ?? '',
-          )?.[1],
+        () => /tiros (\d+)/.exec(document.querySelector('.debug-overlay')?.textContent ?? '')?.[1],
       ),
     );
 
@@ -145,14 +187,9 @@ test('↓ + pulo desce por uma plataforma, sem atravessar o chão', async ({ pag
      debaixo dela, parar, e pular na vertical. */
   const PLATFORM_X = 400;
 
-  // Laço fino: o backoff exponencial de `expect.poll` chega a esperar 500 ms
-  // entre leituras, e a 170 px/s isso passa direto da plataforma.
-  await page.keyboard.down('d');
-  for (let i = 0; i < 250; i++) {
-    if ((await readPlayer(page)).x > PLATFORM_X - 40) break;
-    await page.waitForTimeout(25);
-  }
-  await page.keyboard.up('d');
+  // Desde a Fase 2 há um caixote no chão antes da plataforma: ele é sólido,
+  // então chegar lá exige pular por cima — correr reto trava contra ele.
+  expect(await advanceToFirstEnemy(page, PLATFORM_X - 40)).toBe(true);
   await expect.poll(async () => (await readPlayer(page)).vx, { timeout: 3000 }).toBe(0);
 
   await page.keyboard.down('Space');
@@ -171,19 +208,30 @@ test('↓ + pulo desce por uma plataforma, sem atravessar o chão', async ({ pag
 
   const onPlatform = await readPlayer(page);
 
+  /* Tenta descer algumas vezes. A plataforma fica logo acima do primeiro
+     soldado: um tiro joga o player no ar e a tentativa daquele instante falha
+     porque ele não está apoiado. Um jogador apertaria de novo — o teste
+     também, senão estaria testando a sorte do tiroteio, não a descida. */
   await page.keyboard.down('s');
-  await page.waitForTimeout(120);
-  await page.keyboard.press('Space');
-  await page.waitForTimeout(800);
+  let dropped = false;
+  for (let attempt = 0; attempt < 6 && !dropped; attempt++) {
+    await page.keyboard.press('Space');
+    await page.waitForTimeout(500);
+    dropped = (await readPlayer(page)).y > onPlatform.y + 16;
+  }
   await page.keyboard.up('s');
+  expect(dropped).toBe(true);
 
   const after = await readPlayer(page);
   // Desceu de fato...
   expect(after.y).toBeGreaterThan(onPlatform.y + 16);
-  // ...e parou no chão, em vez de atravessá-lo e cair para fora do mundo
-  // (o que faria o respawn levar o player de volta ao início da fase).
-  expect(after.grounded).toBe(true);
+  /* ...e parou no cenário em vez de atravessá-lo. Não dá para exigir
+     `grounded` neste instante: aqui já há soldados atirando, e um tiro joga o
+     player no ar. O que este teste precisa garantir é que ele não caiu ATRAVÉS
+     do chão — isso apareceria como respawn no início da fase (x ≈ 56) ou como
+     y abaixo do mundo. */
   expect(after.x).toBeGreaterThan(200);
+  expect(after.y).toBeLessThanOrEqual(GROUND_Y);
 });
 
 test('cair num vão devolve o player ao início da fase', async ({ page }) => {
@@ -199,6 +247,92 @@ test('cair num vão devolve o player ao início da fase', async ({ page }) => {
 
   const respawned = await readPlayer(page);
   expect(Math.abs(respawned.x - spawn.x)).toBeLessThan(60);
+});
+
+test('a fase nasce povoada de inimigos e destrutíveis', async ({ page }) => {
+  await boot(page);
+  const combat = await readCombat(page);
+
+  expect(combat.enemiesTotal).toBeGreaterThanOrEqual(8);
+  expect(combat.enemiesAlive).toBe(combat.enemiesTotal);
+  expect(combat.destructibles).toBeGreaterThanOrEqual(5);
+  expect(combat.score).toBe(0);
+});
+
+test('atirar num inimigo mata e pontua', async ({ page }) => {
+  await boot(page);
+  const before = await readCombat(page);
+
+  await page.keyboard.press('q'); // metralhadora
+  await page.waitForTimeout(150);
+  await page.keyboard.down('d');
+  await page.keyboard.down('j');
+
+  await expect
+    .poll(async () => (await readCombat(page)).enemiesAlive, { timeout: 20_000 })
+    .toBeLessThan(before.enemiesAlive);
+
+  await page.keyboard.up('j');
+  await page.keyboard.up('d');
+
+  expect((await readCombat(page)).score).toBeGreaterThan(0);
+});
+
+test('o inimigo detecta, telegrafa e acerta o jogador', async ({ page }) => {
+  await boot(page);
+  const start = await readPlayer(page);
+  expect(start.hp).toBe(6);
+
+  expect(await advanceToFirstEnemy(page, 360)).toBe(true);
+
+  // Primeiro o estado de alerta — nenhum tiro sai sem antecipação.
+  await expect
+    .poll(async () => (await readCombat(page)).enemyStates, { timeout: 10_000 })
+    .toMatch(/ALERT|ATTACK/);
+
+  // Depois o dano: parado a descoberto, o jogador leva tiro.
+  await expect
+    .poll(async () => (await readPlayer(page)).hp, { timeout: 15_000 })
+    .toBeLessThan(start.hp);
+});
+
+test('granada é consumida e detona', async ({ page }) => {
+  await boot(page);
+  const before = await readPlayer(page);
+  expect(before.grenades).toBe(5);
+
+  await page.keyboard.press('l');
+
+  await expect
+    .poll(async () => (await readPlayer(page)).grenades, { timeout: 5000 })
+    .toBe(before.grenades - 1);
+
+  // Depois do pavio a granada some do pool, em vez de ficar acumulando.
+  await expect
+    .poll(
+      async () =>
+        Number(
+          await page.evaluate(
+            () =>
+              /granadas (\d+)/.exec(
+                document.querySelector('.debug-overlay')?.textContent ?? '',
+              )?.[1],
+          ),
+        ),
+      { timeout: 6000 },
+    )
+    .toBe(0);
+});
+
+test('o HUD reflete vida, granadas e pontuação', async ({ page }) => {
+  await boot(page);
+
+  const segments = page.locator('.hud-health__seg');
+  await expect(segments).toHaveCount(6);
+  expect(await page.locator('.hud-health__seg.is-full').count()).toBe(6);
+
+  await expect(page.locator('.hud-grenades')).toContainText('GRANADAS');
+  await expect(page.locator('.hud-score')).toHaveText('000000');
 });
 
 test('o canvas mantém a altura lógica de 360 e a largura dentro da faixa', async ({ page }) => {

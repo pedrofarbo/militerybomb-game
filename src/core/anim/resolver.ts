@@ -7,6 +7,7 @@
  * porque dois sistemas discordam sobre quem manda.
  */
 
+import { EnemyState, type EnemyTypeId } from '../enemies/brain';
 import { Locomotion, type PlayerState } from '../player/player-state';
 
 export interface AnimSelection {
@@ -36,4 +37,31 @@ export function resolvePlayerAnim(s: PlayerState): AnimSelection {
 export function runAnimTimeScale(vx: number, maxSpeed: number): number {
   const t = Math.min(1, Math.abs(vx) / maxSpeed);
   return 0.55 + t * 0.65;
+}
+
+/* ─────────────────────────── Inimigos ─────────────────────────── */
+
+/**
+ * Mesma regra do player: a animação é DERIVADA do estado, num lugar só.
+ * `moving` desempata ALERT — parado encarando ou andando de lado.
+ */
+export function resolveEnemyAnim(
+  type: EnemyTypeId,
+  state: EnemyState,
+  moving: boolean,
+): AnimSelection {
+  switch (state) {
+    case EnemyState.Dead:
+      return { key: `${type}.death`, lock: true };
+    case EnemyState.Hurt:
+      return { key: `${type}.hurt`, lock: true };
+    case EnemyState.Attack:
+      return { key: `${type}.attack`, lock: false };
+    case EnemyState.Alert:
+      return { key: moving ? `${type}.walk` : `${type}.idle`, lock: false };
+    case EnemyState.Patrol:
+      return { key: `${type}.walk`, lock: false };
+    case EnemyState.Idle:
+      return { key: `${type}.idle`, lock: false };
+  }
 }

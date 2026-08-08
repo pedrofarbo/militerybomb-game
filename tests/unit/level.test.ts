@@ -170,6 +170,44 @@ describe('fase 1 — invariantes de level design', () => {
     expect(def.bounds.height).toBeGreaterThan(360);
   });
 
+  /**
+   * Uma entidade sem chão embaixo cai para fora do mundo assim que a fase
+   * carrega. Fica óbvio jogando — e invisível em qualquer outra revisão.
+   */
+  it('toda entidade com gravidade tem apoio logo abaixo', () => {
+    const FLOATING: ReadonlySet<string> = new Set(['turret']);
+    const at = (x: number, y: number): number => def.tiles[y * def.width + x] ?? 0;
+
+    const unsupported = def.entities
+      .filter((e) => !FLOATING.has(e.type))
+      .filter((e) => {
+        const tileX = Math.floor(e.x / def.tileWidth);
+        const feetTileY = Math.floor(e.y / def.tileHeight);
+        return !def.solidTiles.has(at(tileX, feetTileY));
+      })
+      .map((e) => `${e.type} em (${e.x}, ${e.y})`);
+
+    expect(unsupported).toEqual([]);
+  });
+
+  it('a fase tem inimigos e destrutíveis suficientes para o combate', () => {
+    const count = (type: string): number => def.entities.filter((e) => e.type === type).length;
+
+    expect(count('soldier')).toBeGreaterThanOrEqual(4);
+    expect(count('heavy')).toBeGreaterThanOrEqual(1);
+    expect(count('turret')).toBeGreaterThanOrEqual(2);
+    expect(count('barrel')).toBeGreaterThanOrEqual(2);
+  });
+
+  it('nenhum inimigo fica no caminho antes do jogador aprender a se mover', () => {
+    // As primeiras ~19 colunas são o desembarque: plano e sem ameaça.
+    const safeZoneEnd = 20 * def.tileWidth;
+    const early = def.entities.filter(
+      (e) => e.x < safeZoneEnd && ['soldier', 'heavy', 'turret'].includes(e.type),
+    );
+    expect(early).toEqual([]);
+  });
+
   it('declara as camadas de parallax que o cenário espera', () => {
     expect(def.parallax.map((p) => p.image)).toEqual(['bg.bg_far', 'bg.bg_near', 'bg.fg_near']);
     expect(def.parallax.filter((p) => p.foreground)).toHaveLength(1);

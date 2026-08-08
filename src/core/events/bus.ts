@@ -19,6 +19,7 @@ export interface GameEventMap {
   'ammo:changed': { ammo: number | 'infinite' };
   'grenades:changed': { count: number };
   'score:changed': { score: number; delta: number };
+  'enemy:killed': { typeId: string; x: number; y: number };
   'checkpoint:reached': { id: string };
   'level:complete': { levelId: string; timeMs: number; score: number };
   'quality:changed': { level: QualityLevel };

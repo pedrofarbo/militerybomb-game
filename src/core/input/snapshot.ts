@@ -64,18 +64,6 @@ export class InputState implements InputSnapshot {
     }
   }
 
-  /**
-   * Consome as bordas do frame.
-   *
-   * Um frame pode conter mais de um passo fixo de simulação. Sem isto,
-   * `justPressed` continuaria verdadeiro no segundo passo e um único toque
-   * seria contado duas vezes — o tipo de bug que só aparece quando o
-   * framerate cai e a reprodução fica impossível.
-   */
-  consumeEdges(): void {
-    for (const a of ALL_ACTIONS) this.previous.set(a, this.current.get(a) ?? false);
-  }
-
   held(a: Action): boolean {
     return this.current.get(a) === true;
   }

@@ -11,16 +11,27 @@ import type { ShotRequest } from '../../core/weapons/weapon-def';
 import { SPRITES } from '../../assets/manifest';
 import { DEPTH_PROJECTILES } from '../fx/FxService';
 
+export type ProjectilePoolTag = 'player' | 'enemy';
+
 export class Projectile extends Phaser.Physics.Arcade.Sprite {
+  /**
+   * De qual pool este projétil saiu. É PROPRIEDADE DO OBJETO, não do disparo:
+   * devolver ao pool pelo `team` do tiro funcionaria hoje e quebraria em
+   * silêncio no dia em que um projétil mudar de dono (ricochete, arma
+   * capturada), corrompendo os dois pools.
+   */
+  readonly poolTag: ProjectilePoolTag;
+
   damage = 0;
   team: ShotRequest['team'] = 'player';
   ownerId = -1;
   weaponId: ShotRequest['weaponId'] = 'pistol';
   private lifeMs = 0;
 
-  constructor(scene: Phaser.Scene) {
+  constructor(scene: Phaser.Scene, poolTag: ProjectilePoolTag) {
     const sprite = SPRITES['projectile.bullet'];
     super(scene, 0, 0, sprite.atlas, sprite.frame);
+    this.poolTag = poolTag;
     scene.add.existing(this);
     scene.physics.add.existing(this);
     this.setDepth(DEPTH_PROJECTILES);

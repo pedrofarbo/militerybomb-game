@@ -8,24 +8,32 @@
  */
 
 import Phaser from 'phaser';
-import { PLAYER, WORLD } from '../../core/config/tuning';
+import { PLAYER, WORLD, type QualityLevel } from '../../core/config/tuning';
 import { ONE_WAY_TILES, parseLevel } from '../../core/level/parse';
 import { LEVEL_01 } from '../../core/level/levels/level-01';
-import type { LevelDef } from '../../core/level/schema';
+import type { LevelDef, LevelEntityType } from '../../core/level/schema';
 import { createRng } from '../../core/math';
 import type { GameEventBus } from '../../core/events/bus';
 import type { ShotRequest, WeaponId } from '../../core/weapons/weapon-def';
 import { WEAPONS } from '../../core/weapons/weapons.data';
+import { hasLineOfSight } from '../../core/combat/overlap';
+import type { DamageInfo } from '../../core/combat/health';
+import { EXPLOSIONS, type DestructibleTypeId } from '../../core/combat/explosives';
+import type { EnemyTypeId } from '../../core/enemies/brain';
 import { SPRITES } from '../../assets/manifest';
 import { PlayerActor } from '../entities/PlayerActor';
+import { EnemyActor, type EnemyWorldProbe } from '../entities/EnemyActor';
+import { Destructible } from '../entities/Destructible';
+import { GrenadeActor } from '../entities/GrenadeActor';
 import { Projectile } from '../entities/Projectile';
 import { Pool } from '../systems/Pool';
+import { CombatSystem } from '../systems/CombatSystem';
+import { registerCollisions } from '../systems/CollisionMatrix';
 import { FxService } from '../fx/FxService';
 import { CameraDirector } from '../camera/CameraDirector';
 import { buildLevel, updateParallax, type BuiltLevel } from '../level/LevelBuilder';
 import type { InputManager } from '../input/InputManager';
 import type { DebugService } from '../debug/DebugService';
-import type { QualityLevel } from '../../core/config/tuning';
 
 export interface LevelSceneDeps {
   input: InputManager;
@@ -42,22 +50,51 @@ const FIXED_STEP_MS = 1000 / WORLD.fixedFps;
 const MAX_STEPS_PER_FRAME = 5;
 /** Delta máximo aceito de um frame (abas em segundo plano devolvem valores enormes). */
 const MAX_FRAME_MS = 100;
-const PROJECTILE_POOL_SIZE = 64;
+const PLAYER_SHOT_POOL = 64;
+const ENEMY_SHOT_POOL = 64;
+const GRENADE_POOL = 8;
 /** A câmera mira o tronco do player, não os pés. */
 const CAMERA_TARGET_OFFSET_Y = 24;
+/** Inimigos além desta distância da câmera não pensam. */
+const AI_ACTIVE_MARGIN_PX = 160;
+
+const ENEMY_TYPES: ReadonlySet<LevelEntityType> = new Set(['soldier', 'heavy', 'turret']);
 
 export class LevelScene extends Phaser.Scene {
   private deps!: LevelSceneDeps;
   private def!: LevelDef;
   private built!: BuiltLevel;
   private player!: PlayerActor;
-  private projectiles!: Pool<Projectile>;
-  private projectileGroup!: Phaser.GameObjects.Group;
+  private combat!: CombatSystem;
   private fx!: FxService;
   private director!: CameraDirector;
-  private readonly activeProjectiles: Projectile[] = [];
+
+  private playerShots!: Pool<Projectile>;
+  private enemyShots!: Pool<Projectile>;
+  private grenades!: Pool<GrenadeActor>;
+  private playerShotGroup!: Phaser.GameObjects.Group;
+  private enemyShotGroup!: Phaser.GameObjects.Group;
+  private grenadeGroup!: Phaser.GameObjects.Group;
+  private enemyGroup!: Phaser.GameObjects.Group;
+  private destructibleGroup!: Phaser.GameObjects.Group;
+
+  private readonly enemies: EnemyActor[] = [];
+  private readonly destructibles: Destructible[] = [];
+  private readonly activeShots: Projectile[] = [];
+  private readonly activeGrenades: GrenadeActor[] = [];
+  private readonly enemyDamage: DamageInfo = {
+    amount: 0,
+    kind: 'bullet',
+    sourceId: -1,
+    originX: 0,
+    originY: 0,
+    knockback: 0,
+  };
+
   private accumulatorMs = 0;
   private quality: QualityLevel = 'high';
+  private score = 0;
+  private respawnTimerMs = 0;
   private random = createRng(0x5eed);
 
   constructor() {
@@ -73,72 +110,28 @@ export class LevelScene extends Phaser.Scene {
   create(): void {
     this.def = parseLevel(LEVEL_01);
     this.built = buildLevel(this, this.def);
-
     this.physics.world.setBounds(0, 0, this.built.widthPx, this.built.heightPx + 256);
+    this.cameras.main.setBackgroundColor(0x0d0b12);
+
     this.fx = new FxService(this);
+    this.createPools();
+    this.createPlayer();
+    this.createLevelEntities();
 
-    this.player = new PlayerActor(
-      this,
-      this.def.spawn.x,
-      this.def.spawn.y,
+    this.combat = new CombatSystem(
+      { enemies: this.enemies, destructibles: this.destructibles },
       {
-        onShots: (shots, weaponId, mx, my, angle) =>
-          this.spawnShots(shots, weaponId, mx, my, angle),
-        onJump: (x, y) => {
-          this.deps.bus.emit('player:jumped', { x, y });
-        },
-        onLand: (x, y, fallSpeed) => {
-          // Poeira só na aterrissagem que "pesa": senão vira ruído visual.
-          if (fallSpeed > 260) this.fx.play('fx.dust.land', x, y - 4);
-          // Queda longa também sacode a tela: é o que dá peso ao impacto.
-          if (fallSpeed > PLAYER.hardLandingSpeed) this.director.shake(PLAYER.hardLandingShake);
-          this.deps.bus.emit('player:landed', { x, y, fallSpeed });
-        },
-        onWeaponChanged: (weaponId, ammo) => {
-          this.deps.bus.emit('weapon:changed', { weaponId, ammo });
-        },
+        onEnemyKilled: (enemy) => this.rewardKill(enemy),
         onShake: (trauma) => this.director.shake(trauma),
-        isOnOneWayPlatform: (x, y) => this.isOnOneWayPlatform(x, y),
-      },
-      this.random,
-    );
-
-    /* O `processCallback` decide, tile a tile, se a colisão vale. Durante uma
-       descida por plataforma rejeitamos APENAS os tiles de sentido único — o
-       chão sólido continua colidindo, então o comando nunca joga o player
-       para fora do mundo. */
-    this.physics.add.collider(
-      this.player.sprite,
-      this.built.layer,
-      undefined,
-      (_sprite, tileObject) => {
-        if (!this.player.isDropping) return true;
-        const tile = tileObject as Phaser.Tilemaps.Tile;
-        return !ONE_WAY_TILES.has(tile.index);
+        playFx: (key, x, y) => this.fx.play(key, x, y),
       },
     );
 
-    /* UM collider para todos os projéteis, registrado uma vez. Registrar um
-       collider por tiro (o caminho ingênuo) vaza um handler a cada disparo e
-       degrada o frame progressivamente durante o combate. */
-    this.projectileGroup = this.add.group();
-    this.projectiles = new Pool<Projectile>(() => {
-      const projectile = new Projectile(this);
-      this.projectileGroup.add(projectile);
-      return projectile;
-    }, PROJECTILE_POOL_SIZE);
-
-    this.physics.add.collider(this.projectileGroup, this.built.layer, (obj) => {
-      const projectile = obj as Projectile;
-      const def = WEAPONS[projectile.weaponId];
-      this.fx.play(def.fx.impact, projectile.x, projectile.y);
-      this.retire(projectile);
-    });
+    this.wireCollisions();
 
     this.director = new CameraDirector(this.cameras.main, this.def.spawn.x, this.def.spawn.y);
     this.director.setBounds(this.built.widthPx, this.built.heightPx);
     this.director.snapTo(this.def.spawn.x, this.def.spawn.y - 40);
-    this.cameras.main.setBackgroundColor(0x0d0b12);
 
     // Apresentação e câmera rodam DEPOIS da física, senão ficam um frame atrás
     // da posição real e a imagem treme.
@@ -148,18 +141,149 @@ export class LevelScene extends Phaser.Scene {
     });
 
     this.registerDebugPanels();
-    this.deps.bus.emit('player:spawned', { x: this.def.spawn.x, y: this.def.spawn.y });
-    this.deps.bus.emit('weapon:changed', { weaponId: 'pistol', ammo: 'infinite' });
+    this.announceInitialState();
   }
 
-  setQuality(level: QualityLevel): void {
-    this.quality = level;
-    this.fx.setQuality(level);
+  /* ─────────────────────────── Construção ─────────────────────────── */
+
+  private createPools(): void {
+    this.playerShotGroup = this.add.group();
+    this.playerShots = new Pool<Projectile>(() => {
+      const p = new Projectile(this, 'player');
+      this.playerShotGroup.add(p);
+      return p;
+    }, PLAYER_SHOT_POOL);
+
+    this.enemyShotGroup = this.add.group();
+    this.enemyShots = new Pool<Projectile>(() => {
+      const p = new Projectile(this, 'enemy');
+      this.enemyShotGroup.add(p);
+      return p;
+    }, ENEMY_SHOT_POOL);
+
+    this.grenadeGroup = this.add.group();
+    this.grenades = new Pool<GrenadeActor>(() => {
+      const g = new GrenadeActor(this);
+      this.grenadeGroup.add(g.sprite);
+      return g;
+    }, GRENADE_POOL);
+
+    this.enemyGroup = this.add.group();
+    this.destructibleGroup = this.add.group();
   }
+
+  private createPlayer(): void {
+    this.player = new PlayerActor(
+      this,
+      this.def.spawn.x,
+      this.def.spawn.y,
+      {
+        onShots: (shots, weaponId, mx, my, angle) =>
+          this.spawnPlayerShots(shots, weaponId, mx, my, angle),
+        onJump: (x, y) => this.deps.bus.emit('player:jumped', { x, y }),
+        onLand: (x, y, fallSpeed) => {
+          if (fallSpeed > 260) this.fx.play('fx.dust.land', x, y - 4);
+          if (fallSpeed > PLAYER.hardLandingSpeed) this.director.shake(PLAYER.hardLandingShake);
+          this.deps.bus.emit('player:landed', { x, y, fallSpeed });
+        },
+        onWeaponChanged: (weaponId, ammo) =>
+          this.deps.bus.emit('weapon:changed', { weaponId, ammo }),
+        onShake: (trauma) => this.director.shake(trauma),
+        onGrenadeThrown: (x, y, angle, facing) => this.throwGrenade(x, y, angle, facing),
+        onGrenadesChanged: (count) => this.deps.bus.emit('grenades:changed', { count }),
+        onHealthChanged: (hp, max) => this.deps.bus.emit('player:damaged', { hp, max }),
+        onDied: () => this.onPlayerDied(),
+        isOnOneWayPlatform: (x, y) => this.isOnOneWayPlatform(x, y),
+      },
+      this.random,
+    );
+  }
+
+  private createLevelEntities(): void {
+    const probe: EnemyWorldProbe = {
+      canSee: (fx, fy, tx, ty) =>
+        hasLineOfSight(fx, fy, tx, ty, this.def.tileWidth, (tileX, tileY) =>
+          this.isSolidTile(tileX, tileY),
+        ),
+      isBlocked: (x, y, facing) =>
+        this.isSolidAtWorld(x + 14 * facing, y - PLAYER.bodyHeight * 0.4),
+      // Sonda o chão logo à frente: sem ela o inimigo patrulha para dentro do vão.
+      isEdge: (x, y) => !this.isSolidAtWorld(x, y + 6),
+    };
+
+    for (const entity of this.def.entities) {
+      if (ENEMY_TYPES.has(entity.type)) {
+        const enemy = new EnemyActor(
+          this,
+          entity.type as EnemyTypeId,
+          entity.x,
+          entity.y,
+          entity.facing,
+          entity.patrolLeft,
+          entity.patrolRight,
+          probe,
+          {
+            onFire: (source, angle) => this.spawnEnemyShot(source, angle),
+            onDied: (source) => this.removeEnemy(source),
+            onDamaged: (source, result) => {
+              this.fx.play('fx.impact.armor', source.x, source.torsoY);
+              if (result.killed) this.rewardKill(source);
+            },
+          },
+        );
+        this.enemies.push(enemy);
+        this.enemyGroup.add(enemy.sprite);
+        continue;
+      }
+
+      const target = new Destructible(this, entity.type as DestructibleTypeId, entity.x, entity.y, {
+        onDestroyed: (source) => this.onDestructibleDestroyed(source),
+      });
+      this.destructibles.push(target);
+      this.destructibleGroup.add(target.sprite);
+    }
+  }
+
+  private wireCollisions(): void {
+    registerCollisions(
+      this.physics,
+      {
+        playerSprite: this.player.sprite,
+        tileLayer: this.built.layer,
+        enemies: this.enemyGroup,
+        destructibles: this.destructibleGroup,
+        playerShots: this.playerShotGroup,
+        enemyShots: this.enemyShotGroup,
+        grenades: this.grenadeGroup,
+      },
+      {
+        playerVsTile: (tile) => !(this.player.isDropping && ONE_WAY_TILES.has(tile.index)),
+        playerShotHitTile: (shot) => this.impactShot(shot as Projectile),
+        playerShotHitEnemy: (shot, enemyObject) =>
+          this.hitEnemy(shot as Projectile, enemyObject as Phaser.GameObjects.Sprite),
+        playerShotHitDestructible: (shot, targetObject) =>
+          this.hitDestructible(shot as Projectile, targetObject as Phaser.GameObjects.Sprite),
+        enemyShotHitTile: (shot) => this.impactShot(shot as Projectile),
+        enemyShotHitPlayer: (shot) => this.hitPlayerWithShot(shot as Projectile),
+        playerTouchedEnemy: (enemyObject) =>
+          this.contactDamage(enemyObject as Phaser.GameObjects.Sprite),
+      },
+    );
+  }
+
+  private announceInitialState(): void {
+    const bus = this.deps.bus;
+    bus.emit('player:spawned', { x: this.def.spawn.x, y: this.def.spawn.y });
+    bus.emit('weapon:changed', { weaponId: 'pistol', ammo: 'infinite' });
+    bus.emit('player:damaged', { hp: this.player.health.current, max: this.player.health.max });
+    bus.emit('grenades:changed', { count: this.player.grenadeCount });
+    bus.emit('score:changed', { score: this.score, delta: 0 });
+  }
+
+  /* ───────────────────────────── Loop ───────────────────────────── */
 
   override update(_time: number, delta: number): void {
     const dt = Math.min(delta, MAX_FRAME_MS);
-    this.deps.input.update(this.time.now, dt);
 
     /* Passo fixo para a simulação: o mesmo input produz o mesmo resultado em
        60 Hz, 120 Hz ou num celular engasgando — condição para replays.
@@ -169,24 +293,48 @@ export class LevelScene extends Phaser.Scene {
     this.accumulatorMs += dt;
     let steps = 0;
     while (this.accumulatorMs >= FIXED_STEP_MS && steps < MAX_STEPS_PER_FRAME) {
-      this.player.step(this.deps.input.snapshot, this.time.now, FIXED_STEP_MS);
-      // Bordas de input valem por FRAME, não por passo: sem consumir, um único
-      // toque de pulo seria contado em cada passo do mesmo frame.
-      this.deps.input.consumeEdges();
+      /* O input é lido DENTRO do passo, nunca uma vez por frame.
+         Ler por frame parece equivalente e não é: um frame curto pode não
+         completar nenhum passo, e a leitura já teria consumido o latch de
+         toque do teclado — o comando desaparecia sem deixar rastro. Para quem
+         joga, isso é o jogo ignorando um toque de vez em quando.
+         Ler por passo também resolve as bordas: a segunda leitura do mesmo
+         frame vê a tecla como segurada, não como recém-pressionada. */
+      this.deps.input.update(this.time.now, FIXED_STEP_MS);
+      this.simulate(FIXED_STEP_MS);
       this.accumulatorMs -= FIXED_STEP_MS;
       steps++;
     }
     // Travamento longo: descarta o resto em vez de tentar recuperar em rajada.
     if (this.accumulatorMs > FIXED_STEP_MS * MAX_STEPS_PER_FRAME) this.accumulatorMs = 0;
+  }
 
-    this.tickProjectiles(dt);
-    this.checkOutOfBounds();
+  private simulate(dtMs: number): void {
+    const now = this.time.now;
+    this.player.step(this.deps.input.snapshot, now, dtMs);
+
+    /* Inimigos fora da tela não pensam. Além de custar frame à toa, um soldado
+       reagindo a tiros a 800 px de distância confunde mais do que ajuda. */
+    const camera = this.cameras.main;
+    const minX = camera.scrollX - AI_ACTIVE_MARGIN_PX;
+    const maxX = camera.scrollX + camera.width + AI_ACTIVE_MARGIN_PX;
+    const playerAlive = !this.player.state.dead;
+
+    for (const enemy of this.enemies) {
+      if (!enemy.alive || (enemy.x >= minX && enemy.x <= maxX)) {
+        enemy.step(this.player.x, this.player.torsoY, playerAlive, now, dtMs);
+      }
+    }
+
+    for (const target of this.destructibles) target.step(dtMs);
+
+    this.tickProjectiles(dtMs);
+    this.tickGrenades(dtMs);
+    this.tickRespawn(dtMs);
   }
 
   private postUpdate(_time: number, delta: number): void {
     const dt = Math.min(delta, MAX_FRAME_MS);
-    // Apresentação: roda uma vez por frame, sempre depois da física, para o
-    // sprite não ficar um frame atrás da posição real.
     this.player.render();
     this.director.update(
       this.player.x,
@@ -200,7 +348,14 @@ export class LevelScene extends Phaser.Scene {
     this.deps.debug.update(dt);
   }
 
-  private spawnShots(
+  setQuality(level: QualityLevel): void {
+    this.quality = level;
+    this.fx.setQuality(level);
+  }
+
+  /* ──────────────────────────── Projéteis ───────────────────────── */
+
+  private spawnPlayerShots(
     shots: readonly ShotRequest[],
     weaponId: WeaponId,
     muzzleX: number,
@@ -211,46 +366,248 @@ export class LevelScene extends Phaser.Scene {
     const art = SPRITES[def.fx.projectile as keyof typeof SPRITES];
 
     for (const shot of shots) {
-      const projectile = this.projectiles.acquire();
+      const projectile = this.playerShots.acquire();
       if (!projectile) break;
       projectile.fire(shot, art);
-      this.activeProjectiles.push(projectile);
+      this.activeShots.push(projectile);
     }
 
     this.fx.muzzle(def.fx.muzzle, muzzleX, muzzleY, angleRad);
     this.deps.bus.emit('player:fired', { x: muzzleX, y: muzzleY, angleRad, weaponId });
   }
 
+  private spawnEnemyShot(source: EnemyActor, angleRad: number): void {
+    const projectile = this.enemyShots.acquire();
+    if (!projectile) return;
+
+    const def = source.def;
+    const muzzleX = source.x + Math.cos(angleRad) * 14;
+    const muzzleY = source.torsoY + Math.sin(angleRad) * 14;
+    const art = SPRITES[def.projectileSprite as keyof typeof SPRITES];
+
+    projectile.fire(
+      {
+        x: muzzleX,
+        y: muzzleY,
+        angleRad,
+        speed: def.projectileSpeed,
+        damage: def.projectileDamage,
+        lifeMs: def.projectileLifeMs,
+        ownerId: -1,
+        team: 'enemy',
+        weaponId: 'pistol',
+      },
+      art,
+    );
+    this.activeShots.push(projectile);
+    this.fx.muzzle(def.muzzleFx, muzzleX, muzzleY, angleRad);
+  }
+
   private tickProjectiles(dtMs: number): void {
-    for (let i = this.activeProjectiles.length - 1; i >= 0; i--) {
-      const p = this.activeProjectiles[i]!;
-      if (p.tick(dtMs) || !p.active) this.retire(p, i);
+    for (let i = this.activeShots.length - 1; i >= 0; i--) {
+      const shot = this.activeShots[i]!;
+      if (shot.tick(dtMs) || !shot.active) this.retireShot(shot, i);
     }
   }
 
-  private retire(projectile: Projectile, index = this.activeProjectiles.indexOf(projectile)): void {
-    if (index >= 0) this.activeProjectiles.splice(index, 1);
-    projectile.deactivate();
-    this.projectiles.release(projectile);
+  private impactShot(shot: Projectile): void {
+    if (!shot.active) return;
+    const key = shot.team === 'player' ? 'fx.impact.concrete' : 'fx.impact.metal';
+    this.fx.play(key, shot.x, shot.y);
+    this.retireShot(shot);
+  }
+
+  private retireShot(shot: Projectile, index = this.activeShots.indexOf(shot)): void {
+    if (index >= 0) this.activeShots.splice(index, 1);
+    shot.deactivate();
+    (shot.poolTag === 'player' ? this.playerShots : this.enemyShots).release(shot);
+  }
+
+  /* ────────────────────────────── Dano ──────────────────────────── */
+
+  private hitEnemy(shot: Projectile, enemySprite: Phaser.GameObjects.Sprite): void {
+    if (!shot.active || shot.team !== 'player') return;
+    const enemy = enemySprite.getData('enemy') as EnemyActor | undefined;
+    if (!enemy?.alive) return;
+
+    this.enemyDamage.amount = shot.damage;
+    this.enemyDamage.kind = 'bullet';
+    this.enemyDamage.sourceId = shot.ownerId;
+    this.enemyDamage.originX = shot.x;
+    this.enemyDamage.originY = shot.y;
+    this.enemyDamage.knockback = KNOCKBACK_PER_SHOT;
+
+    enemy.takeDamage(this.enemyDamage, this.time.now);
+    this.retireShot(shot);
+  }
+
+  private hitDestructible(shot: Projectile, targetSprite: Phaser.GameObjects.Sprite): void {
+    if (!shot.active || shot.team !== 'player') return;
+    const target = targetSprite.getData('destructible') as Destructible | undefined;
+    if (!target?.alive) return;
+
+    this.enemyDamage.amount = shot.damage;
+    this.enemyDamage.kind = 'bullet';
+    this.enemyDamage.sourceId = shot.ownerId;
+    this.enemyDamage.originX = shot.x;
+    this.enemyDamage.originY = shot.y;
+    this.enemyDamage.knockback = 0;
+
+    target.takeDamage(this.enemyDamage, this.time.now);
+    this.fx.play('fx.impact.metal', shot.x, shot.y);
+    this.retireShot(shot);
+  }
+
+  private hitPlayerWithShot(shot: Projectile): void {
+    if (!shot.active || shot.team !== 'enemy') return;
+    this.damagePlayer(shot.damage, shot.x, shot.y, 'bullet');
+    this.retireShot(shot);
+  }
+
+  private contactDamage(enemySprite: Phaser.GameObjects.Sprite): void {
+    const enemy = enemySprite.getData('enemy') as EnemyActor | undefined;
+    if (!enemy?.alive || enemy.contactDamage <= 0) return;
+    this.damagePlayer(enemy.contactDamage, enemy.x, enemy.torsoY, 'contact');
+  }
+
+  private damagePlayer(
+    amount: number,
+    originX: number,
+    originY: number,
+    kind: DamageInfo['kind'],
+  ): void {
+    if (this.player.state.dead) return;
+
+    this.enemyDamage.amount = amount;
+    this.enemyDamage.kind = kind;
+    this.enemyDamage.sourceId = -1;
+    this.enemyDamage.originX = originX;
+    this.enemyDamage.originY = originY;
+    this.enemyDamage.knockback = PLAYER_HIT_KNOCKBACK;
+
+    const result = this.player.takeDamage(this.enemyDamage, this.time.now);
+    if (result.applied <= 0) return;
+
+    this.fx.play('fx.impact.armor', this.player.x, this.player.torsoY);
+    this.director.shake(0.2);
+  }
+
+  /* ────────────────────────── Explosivos ────────────────────────── */
+
+  private throwGrenade(x: number, y: number, angleRad: number, facing: -1 | 1): void {
+    const grenade = this.grenades.acquire();
+    if (!grenade) return;
+    grenade.throw(x, y, angleRad, facing);
+    this.activeGrenades.push(grenade);
+  }
+
+  private tickGrenades(dtMs: number): void {
+    for (let i = this.activeGrenades.length - 1; i >= 0; i--) {
+      const grenade = this.activeGrenades[i]!;
+      if (!grenade.tick(dtMs)) continue;
+      const x = grenade.x;
+      const y = grenade.y;
+      this.activeGrenades.splice(i, 1);
+      grenade.deactivate();
+      this.grenades.release(grenade);
+      this.combat.explode('grenade', x, y, -1, this.time.now);
+    }
+  }
+
+  private onDestructibleDestroyed(target: Destructible): void {
+    const index = this.destructibles.indexOf(target);
+    if (index >= 0) this.destructibles.splice(index, 1);
+
+    this.addScore(target.def.score);
+    const explosion = target.def.explosion;
+    if (explosion) {
+      this.combat.explode(explosion, target.x, target.centerY, -1, this.time.now);
+    } else {
+      this.fx.play('fx.smoke.puff', target.x, target.centerY);
+      const broken = target.def.sprites.broken;
+      if (broken) {
+        const art = SPRITES[broken as keyof typeof SPRITES];
+        const debris = this.add.sprite(target.x, target.y, art.atlas, art.frame).setOrigin(0.5, 1);
+        debris.setDepth(0);
+      }
+    }
+    void EXPLOSIONS;
+  }
+
+  /* ──────────────────────── Morte e pontuação ───────────────────── */
+
+  private rewardKill(enemy: EnemyActor): void {
+    this.addScore(enemy.def.score);
+    this.fx.play(enemy.def.deathFx, enemy.x, enemy.torsoY);
+    this.deps.bus.emit('enemy:killed', { typeId: enemy.def.id, x: enemy.x, y: enemy.y });
+  }
+
+  private removeEnemy(enemy: EnemyActor): void {
+    const index = this.enemies.indexOf(enemy);
+    if (index >= 0) this.enemies.splice(index, 1);
+  }
+
+  private addScore(amount: number): void {
+    this.score += amount;
+    this.deps.bus.emit('score:changed', { score: this.score, delta: amount });
+  }
+
+  private onPlayerDied(): void {
+    this.respawnTimerMs = PLAYER.respawnDelayMs;
+    this.director.shake(0.55);
+    this.fx.play('fx.explosion.small', this.player.x, this.player.torsoY);
+    this.deps.bus.emit('player:died', { atCheckpointId: null });
+  }
+
+  private tickRespawn(dtMs: number): void {
+    // Cair para fora do mundo também mata — sem isto o player some para sempre.
+    if (!this.player.state.dead && this.player.y > this.built.heightPx + 96) {
+      this.damagePlayer(999, this.player.x, this.player.y, 'crush');
+      return;
+    }
+    if (this.respawnTimerMs <= 0) return;
+
+    this.respawnTimerMs -= dtMs;
+    if (this.respawnTimerMs > 0) return;
+
+    this.player.respawn();
+    this.director.snapTo(this.def.spawn.x, this.def.spawn.y - 40);
+    this.deps.bus.emit('player:spawned', { x: this.def.spawn.x, y: this.def.spawn.y });
+  }
+
+  /* ─────────────────────────── Consultas ────────────────────────── */
+
+  private isSolidTile(tileX: number, tileY: number): boolean {
+    const tile = this.built.layer.getTileAt(tileX, tileY, true);
+    // Plataformas não bloqueiam a visão: um inimigo em cima de uma delas
+    // precisa enxergar quem está embaixo.
+    return tile !== null && tile.index > 0 && !ONE_WAY_TILES.has(tile.index);
+  }
+
+  private isSolidAtWorld(x: number, y: number): boolean {
+    return this.isSolidTile(
+      Math.floor(x / this.def.tileWidth),
+      Math.floor(y / this.def.tileHeight),
+    );
   }
 
   /**
-   * O tile logo abaixo dos pés é uma plataforma de sentido único?
-   * Só a cena conhece o tilemap — por isso a checagem mora aqui e o Actor
-   * apenas pergunta.
+   * Amostra a LARGURA DO CORPO, não só o centro.
+   *
+   * Parado na beirada de uma plataforma, o player continua apoiado nela mesmo
+   * com o centro sobre o vazio — e uma amostra única no centro recusava a
+   * descida exatamente ali, do jeito mais confuso possível para quem joga.
    */
   private isOnOneWayPlatform(x: number, y: number): boolean {
-    const tile = this.built.layer.getTileAtWorldXY(x, y + 2, true);
-    return tile !== null && ONE_WAY_TILES.has(tile.index);
+    const half = PLAYER.bodyWidth / 2 - 2;
+    for (const offset of [0, -half, half]) {
+      const tile = this.built.layer.getTileAtWorldXY(x + offset, y + 2, true);
+      if (tile !== null && ONE_WAY_TILES.has(tile.index)) return true;
+    }
+    return false;
   }
 
-  private checkOutOfBounds(): void {
-    if (this.player.y < this.built.heightPx + 96) return;
-    this.player.respawn();
-    this.director.snapTo(this.def.spawn.x, this.def.spawn.y - 40);
-    this.deps.bus.emit('player:died', { atCheckpointId: null });
-    this.deps.bus.emit('player:spawned', { x: this.def.spawn.x, y: this.def.spawn.y });
-  }
+  /* ────────────────────────────── Debug ─────────────────────────── */
 
   private registerDebugPanels(): void {
     const { debug } = this.deps;
@@ -265,16 +622,34 @@ export class LevelScene extends Phaser.Scene {
         `vel    ${s.vx.toFixed(0)}, ${s.vy.toFixed(0)}`,
         `state  ${s.locomotion}  aim:${s.aim}  face:${s.facing}`,
         `ground ${s.grounded ? 'sim' : 'não'}  coyote:${s.coyoteMs.toFixed(0)}  buffer:${s.jumpBufferMs.toFixed(0)}`,
-        `arma   ${this.player.weaponState.weaponId}  munição:${this.player.weaponState.ammo}`,
+        `vida   ${this.player.health.current}/${this.player.health.max}  inv:${s.invulnMs.toFixed(0)}`,
+        `arma   ${this.player.weaponState.weaponId}  munição:${this.player.weaponState.ammo}  granadas:${this.player.grenadeCount}`,
+      ].join('\n');
+    });
+    debug.register('combate', () => {
+      const alive = this.enemies.filter((e) => e.alive).length;
+      const states = this.enemies
+        .filter((e) => e.alive)
+        .slice(0, 4)
+        .map((e) => `${e.def.id}:${e.brain.state}`)
+        .join(' ');
+      return [
+        `inimigos ${alive}/${this.enemies.length}  destrutíveis ${this.destructibles.length}`,
+        `score    ${this.score}`,
+        states || '(nenhum ativo)',
       ].join('\n');
     });
     debug.register('cena', () => {
       const cam = this.director.debugState;
       return [
         `câmera  ${cam.x.toFixed(0)}, ${cam.y.toFixed(0)}  trauma:${cam.trauma.toFixed(2)}`,
-        `pools   projéteis ${this.projectiles.activeCount}/${this.projectiles.size}  fx ${this.fx.activeCount}`,
+        `pools   tiros ${this.playerShots.activeCount + this.enemyShots.activeCount}  granadas ${this.grenades.activeCount}  fx ${this.fx.activeCount}`,
         `viewport ${this.scale.gameSize.width}×${this.scale.gameSize.height}  qualidade:${this.quality}`,
       ].join('\n');
     });
   }
 }
+
+/** Empurrão de um tiro comum. Pequeno: só confirma o acerto. */
+const KNOCKBACK_PER_SHOT = 55;
+const PLAYER_HIT_KNOCKBACK = 90;
