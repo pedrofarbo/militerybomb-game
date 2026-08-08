@@ -26,7 +26,7 @@ verificável** (regra de lint, não convenção):
 Ponto de honestidade arquitetural: com Phaser Arcade Physics, **transform e colisão vivem
 no GameObject** — não dá para ter uma simulação 100% headless sem escrever física própria,
 o que seria um custo enorme e desnecessário. Portanto a fronteira que adotamos é:
-*transform e broadphase são do Phaser; todo o resto das regras é puro*. Isso entrega ~90%
+_transform e broadphase são do Phaser; todo o resto das regras é puro_. Isso entrega ~90%
 do benefício de testabilidade e desacoplamento com ~10% do custo de um ECS/simulação headless.
 
 O MVP é um **vertical slice**: uma fase curta e polida (2–3 minutos), com 3 tipos de inimigo,
@@ -41,56 +41,56 @@ flexível em vez de 1280×720 fixo.
 
 ## 2. Architecture Decisions
 
-| # | Decision | Choice | Reason |
-|---|---|---|---|
-| 1 | Engine | **Phaser 4.2.1** (recomendado) — Phaser 3.90.0 como fallback | Phaser 3.90 (mai/2025) é o último 3.x; Phaser 4 tem renderer node-based novo, ESM real com tree-shaking e types no pacote. Iniciar num ramo terminal força migração em 6 meses. Ver §2.1. |
-| 2 | Linguagem | TypeScript 6.0.3, `strict: true` | TS 7.0.2 é GA e ~10x mais rápido, mas `typescript-eslint` declara peer `<6.1.0` e recusou suporte a TS7; ESLint core está bloqueado atrás disso. Revisitar no TS 7.1 (~out/2026). |
-| 3 | Bundler | Vite 8.2.1 (Rolldown) | Padrão de mercado, HMR, build estática com fingerprint, code-splitting por fase. |
-| 4 | Física | Phaser Arcade Physics, **fixed step 60Hz** | AABB, previsível, barato em mobile. `fps: 60, fixedStep: true` para determinismo e testes reprodutíveis. Matter só se surgirem veículos com física real (pós-MVP). |
-| 5 | Fronteira sim/render | Pasta `core/` sem Phaser + regra ESLint `no-restricted-imports` | Fronteira verificada pelo CI, não por disciplina. |
-| 6 | Padrão de entidade | Classes de entidade (Sprite + `state`) delegando decisões a módulos puros | ECS completo é overkill para ~60 entidades ativas; classes com "brains" puros dão testabilidade sem o custo cognitivo. |
-| 7 | Comunicação entre sistemas | Event bus tipado (`GameEventBus`), hand-rolled (~40 linhas) | HUD/áudio/FX reagem a eventos sem que o gameplay conheça a apresentação. Sem Redux/Zustand — não há estado de UI compartilhado complexo. |
-| 8 | Gerência de estado | Objetos planos + `RunState`/`ProfileState`; sem lib de estado | Estado de jogo muda 60x/s; libs de estado imutável são contraindicadas por GC. |
-| 9 | Resolução | Lógica **640×360**, altura fixa, largura elástica 640–800 | 640×360 é divisor exato de 1280×720 e 1920×1080. Largura elástica elimina letterbox pesado em 19.5:9 sem redesenhar HUD. Ver §2.1(b). |
-| 10 | Scale Manager | `Scale.NONE` + resize handler próprio (altura lógica fixa, `zoom` calculado) | `FIT` letterboxa; `RESIZE` sem clamp quebra balanceamento. O handler próprio garante altura constante e largura previsível. |
-| 11 | Pixel art | `pixelArt: true` (NEAREST), `roundPixels: true`, `antialias: false` | Nitidez consistente; escala não-inteira tratada só no upscale final do canvas. |
-| 12 | HUD e menus | **DOM/HTML/CSS** sobre o canvas, sem framework | `env(safe-area-inset-*)`, acessibilidade, texto nítido em qualquer DPI, zero custo de draw call. Framework não se justifica para ~10 elementos. |
-| 13 | Controles touch | **DOM** (Pointer Events), não objetos Phaser | Multitouch nativo, safe areas via CSS, funciona mesmo com o canvas travado, e sobrevive a pause. |
-| 14 | Áudio | Phaser WebAudioSoundManager + camada `AudioService` | Sem Howler: dependência a mais para resolver problema que o Phaser já resolve. Unlock por gesto tratado no `AudioService`. |
-| 15 | Level data | **Tiled** (`.tmj`) para tiles + object layers para spawns/triggers, parseado para `LevelDef` validado | Ferramenta gratuita, iteração rápida do level design, fonte única de verdade. |
-| 16 | Assets | Atlas empacotado no build, manifesto de chaves lógicas (`player.run`) | Gameplay nunca referencia caminho de arquivo. |
-| 17 | Save | `SaveRepository` (interface) + `LocalStorageSaveRepository`, dados versionados + migrations | Troca por backend/cloud depois sem tocar no gameplay. |
-| 18 | Testes | Vitest 4 (unit em `core/`) + Playwright 1.62 (smoke/replay determinístico) | `core/` roda em Node; o jogo inteiro roda em browser real via input scriptado. |
-| 19 | PWA | `vite-plugin-pwa` 1.3.0, ligado só na Fase 6 | Não deixar service worker atrapalhar o dev loop nem o cache de assets durante a produção de arte. |
-| 20 | Backend | **Nenhum** no MVP | Sem ranking online, sem contas. §30 (segurança) só prepara o terreno. |
+| #   | Decision                   | Choice                                                                                                | Reason                                                                                                                                                                                    |
+| --- | -------------------------- | ----------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Engine                     | **Phaser 4.2.1** (recomendado) — Phaser 3.90.0 como fallback                                          | Phaser 3.90 (mai/2025) é o último 3.x; Phaser 4 tem renderer node-based novo, ESM real com tree-shaking e types no pacote. Iniciar num ramo terminal força migração em 6 meses. Ver §2.1. |
+| 2   | Linguagem                  | TypeScript 6.0.3, `strict: true`                                                                      | TS 7.0.2 é GA e ~10x mais rápido, mas `typescript-eslint` declara peer `<6.1.0` e recusou suporte a TS7; ESLint core está bloqueado atrás disso. Revisitar no TS 7.1 (~out/2026).         |
+| 3   | Bundler                    | Vite 8.2.1 (Rolldown)                                                                                 | Padrão de mercado, HMR, build estática com fingerprint, code-splitting por fase.                                                                                                          |
+| 4   | Física                     | Phaser Arcade Physics, **fixed step 60Hz**                                                            | AABB, previsível, barato em mobile. `fps: 60, fixedStep: true` para determinismo e testes reprodutíveis. Matter só se surgirem veículos com física real (pós-MVP).                        |
+| 5   | Fronteira sim/render       | Pasta `core/` sem Phaser + regra ESLint `no-restricted-imports`                                       | Fronteira verificada pelo CI, não por disciplina.                                                                                                                                         |
+| 6   | Padrão de entidade         | Classes de entidade (Sprite + `state`) delegando decisões a módulos puros                             | ECS completo é overkill para ~60 entidades ativas; classes com "brains" puros dão testabilidade sem o custo cognitivo.                                                                    |
+| 7   | Comunicação entre sistemas | Event bus tipado (`GameEventBus`), hand-rolled (~40 linhas)                                           | HUD/áudio/FX reagem a eventos sem que o gameplay conheça a apresentação. Sem Redux/Zustand — não há estado de UI compartilhado complexo.                                                  |
+| 8   | Gerência de estado         | Objetos planos + `RunState`/`ProfileState`; sem lib de estado                                         | Estado de jogo muda 60x/s; libs de estado imutável são contraindicadas por GC.                                                                                                            |
+| 9   | Resolução                  | Lógica **640×360**, altura fixa, largura elástica 640–800                                             | 640×360 é divisor exato de 1280×720 e 1920×1080. Largura elástica elimina letterbox pesado em 19.5:9 sem redesenhar HUD. Ver §2.1(b).                                                     |
+| 10  | Scale Manager              | `Scale.NONE` + resize handler próprio (altura lógica fixa, `zoom` calculado)                          | `FIT` letterboxa; `RESIZE` sem clamp quebra balanceamento. O handler próprio garante altura constante e largura previsível.                                                               |
+| 11  | Pixel art                  | `pixelArt: true` (NEAREST), `roundPixels: true`, `antialias: false`                                   | Nitidez consistente; escala não-inteira tratada só no upscale final do canvas.                                                                                                            |
+| 12  | HUD e menus                | **DOM/HTML/CSS** sobre o canvas, sem framework                                                        | `env(safe-area-inset-*)`, acessibilidade, texto nítido em qualquer DPI, zero custo de draw call. Framework não se justifica para ~10 elementos.                                           |
+| 13  | Controles touch            | **DOM** (Pointer Events), não objetos Phaser                                                          | Multitouch nativo, safe areas via CSS, funciona mesmo com o canvas travado, e sobrevive a pause.                                                                                          |
+| 14  | Áudio                      | Phaser WebAudioSoundManager + camada `AudioService`                                                   | Sem Howler: dependência a mais para resolver problema que o Phaser já resolve. Unlock por gesto tratado no `AudioService`.                                                                |
+| 15  | Level data                 | **Tiled** (`.tmj`) para tiles + object layers para spawns/triggers, parseado para `LevelDef` validado | Ferramenta gratuita, iteração rápida do level design, fonte única de verdade.                                                                                                             |
+| 16  | Assets                     | Atlas empacotado no build, manifesto de chaves lógicas (`player.run`)                                 | Gameplay nunca referencia caminho de arquivo.                                                                                                                                             |
+| 17  | Save                       | `SaveRepository` (interface) + `LocalStorageSaveRepository`, dados versionados + migrations           | Troca por backend/cloud depois sem tocar no gameplay.                                                                                                                                     |
+| 18  | Testes                     | Vitest 4 (unit em `core/`) + Playwright 1.62 (smoke/replay determinístico)                            | `core/` roda em Node; o jogo inteiro roda em browser real via input scriptado.                                                                                                            |
+| 19  | PWA                        | `vite-plugin-pwa` 1.3.0, ligado só na Fase 6                                                          | Não deixar service worker atrapalhar o dev loop nem o cache de assets durante a produção de arte.                                                                                         |
+| 20  | Backend                    | **Nenhum** no MVP                                                                                     | Sem ranking online, sem contas. §30 (segurança) só prepara o terreno.                                                                                                                     |
 
 ### 2.1 Decisões aprovadas e conflitos identificados
 
 > **Aprovado em 2026-08-08:**
+>
 > - **(a) Phaser 4.2.1** — confirmado.
 > - **(b) Resolução lógica 640×360** — confirmada.
 > - **(f) Arte:** placeholders programáticos agora (`tools/placeholder-gen`,
 >   entregues), arte final produzida por IA seguindo `docs/AI_ART_BRIEF.md`
 >   e `docs/ART_SPEC.md`. Risco **R1** deixa de ser bloqueante de cronograma
->   e passa a ser um risco de *qualidade e consistência* — mitigado pela
+>   e passa a ser um risco de _qualidade e consistência_ — mitigado pela
 >   restrição de paleta, pela validação automática de assets e pelo uso dos
 >   placeholders como condicionamento estrutural (Rota A do briefing).
 >
 > As demais decisões abaixo seguem como propostas.
 
-
 **(a) Phaser 3 vs Phaser 4 — CONFLITO com o requisito §2 do briefing.**
 Você especificou Phaser 3. Estado real hoje (verificado no registry npm em 2026-08-08):
 
-| | Phaser 3.90.0 | Phaser 4.2.1 |
-|---|---|---|
-| Publicado | 2025-05-23 (último 3.x) | 2026-07-09 |
-| Renderer | pipelines v3 | node-based, batching melhor |
-| ESM / tree-shaking | parcial | ESM nativo (`dist/phaser.esm.js`) |
-| Arcade Physics | sim | sim, praticamente inalterada |
-| Canvas fallback | sim | presente mas **deprecado** (WebGL é baseline) |
-| Corpus de tutoriais | enorme | pequeno (4 meses) |
-| Plugins da comunidade | todos | parte ainda não portada |
+|                       | Phaser 3.90.0           | Phaser 4.2.1                                  |
+| --------------------- | ----------------------- | --------------------------------------------- |
+| Publicado             | 2025-05-23 (último 3.x) | 2026-07-09                                    |
+| Renderer              | pipelines v3            | node-based, batching melhor                   |
+| ESM / tree-shaking    | parcial                 | ESM nativo (`dist/phaser.esm.js`)             |
+| Arcade Physics        | sim                     | sim, praticamente inalterada                  |
+| Canvas fallback       | sim                     | presente mas **deprecado** (WebGL é baseline) |
+| Corpus de tutoriais   | enorme                  | pequeno (4 meses)                             |
+| Plugins da comunidade | todos                   | parte ainda não portada                       |
 
 Recomendo **Phaser 4.2.1**: o projeto é greenfield com horizonte de 6+ meses e começar em
 um ramo terminal significa migração forçada depois. Os breaking changes que nos afetam são
@@ -141,22 +141,23 @@ Para garantir que nada seja derivado de obras existentes, o conteúdo parte de u
 
 Versões verificadas no registry npm em **2026-08-08**. Nada abaixo é estimado.
 
-| Camada | Pacote | Versão | Observação |
-|---|---|---|---|
-| Runtime Node | Node.js | **22.12+ LTS** | Exigido por Vite 8 (`^20.19.0 \|\| >=22.12.0`) |
-| Engine | `phaser` | **4.2.1** | Alternativa: `3.90.0` (ver §2.1a) |
-| Linguagem | `typescript` | **6.0.3** | TS 7.0.2 é GA mas incompatível com typescript-eslint |
-| Build | `vite` | **8.2.1** | Baseado em Rolldown |
-| Testes unit | `vitest` | **4.1.10** | Node `^20 \|\| ^22 \|\| >=24` |
-| Testes browser | `@playwright/test` | **1.62.1** | Chromium já disponível no ambiente |
-| Lint | `eslint` | **10.8.1** | Node `^20.19 \|\| ^22.13 \|\| >=24` |
-| Lint TS | `typescript-eslint` | **8.66.0** | peer: `typescript >=4.8.4 <6.1.0` |
-| Format | `prettier` | **3.9.6** | |
-| PWA (Fase 6) | `vite-plugin-pwa` | **1.3.0** | usa Workbox 7.4.x |
+| Camada         | Pacote              | Versão         | Observação                                           |
+| -------------- | ------------------- | -------------- | ---------------------------------------------------- |
+| Runtime Node   | Node.js             | **22.12+ LTS** | Exigido por Vite 8 (`^20.19.0 \|\| >=22.12.0`)       |
+| Engine         | `phaser`            | **4.2.1**      | Alternativa: `3.90.0` (ver §2.1a)                    |
+| Linguagem      | `typescript`        | **6.0.3**      | TS 7.0.2 é GA mas incompatível com typescript-eslint |
+| Build          | `vite`              | **8.2.1**      | Baseado em Rolldown                                  |
+| Testes unit    | `vitest`            | **4.1.10**     | Node `^20 \|\| ^22 \|\| >=24`                        |
+| Testes browser | `@playwright/test`  | **1.62.1**     | Chromium já disponível no ambiente                   |
+| Lint           | `eslint`            | **10.8.1**     | Node `^20.19 \|\| ^22.13 \|\| >=24`                  |
+| Lint TS        | `typescript-eslint` | **8.66.0**     | peer: `typescript >=4.8.4 <6.1.0`                    |
+| Format         | `prettier`          | **3.9.6**      |                                                      |
+| PWA (Fase 6)   | `vite-plugin-pwa`   | **1.3.0**      | usa Workbox 7.4.x                                    |
 
 **Dependências de runtime em produção: apenas `phaser`.** Tudo o mais é devDependency.
 
 Ferramentas fora do npm (versão fixada na instalação, não estimada aqui):
+
 - **Aseprite** — produção de sprites e exportação de spritesheet + JSON.
 - **Tiled** — edição de fases, exportação `.tmj`.
 - Empacotador de atlas por CLI no build (a escolher entre `free-tex-packer-cli` e TexturePacker
@@ -372,40 +373,58 @@ Assinaturas centrais (esboço, não implementação final).
 ```ts
 // core/input/actions.ts
 export const Action = {
-  MoveLeft: 'MOVE_LEFT', MoveRight: 'MOVE_RIGHT', AimUp: 'AIM_UP', AimDown: 'AIM_DOWN',
-  Jump: 'JUMP', Shoot: 'SHOOT', Grenade: 'GRENADE', Special: 'SPECIAL',
-  SwitchWeapon: 'SWITCH_WEAPON', Pause: 'PAUSE', Confirm: 'CONFIRM', Cancel: 'CANCEL',
+  MoveLeft: 'MOVE_LEFT',
+  MoveRight: 'MOVE_RIGHT',
+  AimUp: 'AIM_UP',
+  AimDown: 'AIM_DOWN',
+  Jump: 'JUMP',
+  Shoot: 'SHOOT',
+  Grenade: 'GRENADE',
+  Special: 'SPECIAL',
+  SwitchWeapon: 'SWITCH_WEAPON',
+  Pause: 'PAUSE',
+  Confirm: 'CONFIRM',
+  Cancel: 'CANCEL',
 } as const;
 export type Action = (typeof Action)[keyof typeof Action];
 
 // core/input/snapshot.ts
 export interface InputSnapshot {
-  readonly axisX: number;              // -1..1, analógico no gamepad/joystick
+  readonly axisX: number; // -1..1, analógico no gamepad/joystick
   readonly axisY: number;
   held(a: Action): boolean;
-  justPressed(a: Action): boolean;     // borda de subida neste frame
+  justPressed(a: Action): boolean; // borda de subida neste frame
   justReleased(a: Action): boolean;
-  heldMs(a: Action): number;           // para pulo variável e carga
+  heldMs(a: Action): number; // para pulo variável e carga
 }
 
 export interface InputDevice {
   readonly id: 'keyboard' | 'gamepad' | 'touch' | 'replay';
-  poll(nowMs: number): RawInput;       // sem side effects no gameplay
+  poll(nowMs: number): RawInput; // sem side effects no gameplay
   readonly connected: boolean;
 }
 
 // core/combat/health.ts
 export interface HealthState {
-  current: number; max: number;
-  invulnUntilMs: number; lastHitMs: number;
+  current: number;
+  max: number;
+  invulnUntilMs: number;
+  lastHitMs: number;
 }
 export interface DamageInfo {
-  amount: number; sourceId: EntityId; kind: DamageKind;
-  originX: number; originY: number; knockback: number;
+  amount: number;
+  sourceId: EntityId;
+  kind: DamageKind;
+  originX: number;
+  originY: number;
+  knockback: number;
 }
 export interface DamageResult {
-  applied: number; killed: boolean; ignoredByInvuln: boolean;
-  knockbackX: number; knockbackY: number;
+  applied: number;
+  killed: boolean;
+  ignoredByInvuln: boolean;
+  knockbackX: number;
+  knockbackY: number;
 }
 export function applyDamage(h: HealthState, d: DamageInfo, nowMs: number): DamageResult;
 
@@ -424,7 +443,7 @@ export interface WeaponDef {
   readonly ammoPerShot: number;
   readonly autoFire: boolean;
   readonly recoil: number;
-  readonly screenShake: number;         // trauma 0..1
+  readonly screenShake: number; // trauma 0..1
   readonly explosion?: ExplosionDef;
   readonly fx: { muzzle: FxKey; impact: FxKey; sfx: AudioKey };
   readonly anim: { shootOverride?: AnimKey };
@@ -432,18 +451,27 @@ export interface WeaponDef {
 
 // core/weapons/fire.ts
 export interface ShotRequest {
-  x: number; y: number; angleRad: number; speed: number;
-  damage: number; ownerId: EntityId; team: Team; defId: WeaponId;
+  x: number;
+  y: number;
+  angleRad: number;
+  speed: number;
+  damage: number;
+  ownerId: EntityId;
+  team: Team;
+  defId: WeaponId;
 }
 export function tryFire(
-  s: WeaponState, def: WeaponDef, ctx: FireContext, nowMs: number
+  s: WeaponState,
+  def: WeaponDef,
+  ctx: FireContext,
+  nowMs: number,
 ): { shots: ShotRequest[]; nextState: WeaponState; reason?: 'cooldown' | 'no-ammo' };
 
 // core/enemies/brain.ts
 export interface BrainContext {
   readonly self: { x: number; y: number; hp: number; facing: -1 | 1; grounded: boolean };
   readonly player: { x: number; y: number; alive: boolean } | null;
-  readonly canSeePlayer: boolean;      // fornecido pela camada game (raycast)
+  readonly canSeePlayer: boolean; // fornecido pela camada game (raycast)
   readonly distanceToPlayer: number;
   readonly blockedAhead: boolean;
   readonly edgeAhead: boolean;
@@ -455,7 +483,7 @@ export interface BrainOutput {
   readonly wantFire: boolean;
   readonly aimAngleRad: number | null;
   readonly facing: -1 | 1;
-  readonly state: EnemyStateId;        // IDLE|PATROL|ALERT|ATTACK|HURT|DEAD
+  readonly state: EnemyStateId; // IDLE|PATROL|ALERT|ATTACK|HURT|DEAD
 }
 export interface EnemyBrain {
   readonly id: EnemyTypeId;
@@ -476,18 +504,18 @@ export interface SaveRepository {
 
 // core/events/bus.ts
 export interface GameEventMap {
-  'player:damaged':   { hp: number; max: number };
-  'player:died':      { atCheckpointId: string };
-  'weapon:changed':   { weaponId: WeaponId; ammo: number | 'infinite' };
-  'ammo:changed':     { ammo: number | 'infinite' };
+  'player:damaged': { hp: number; max: number };
+  'player:died': { atCheckpointId: string };
+  'weapon:changed': { weaponId: WeaponId; ammo: number | 'infinite' };
+  'ammo:changed': { ammo: number | 'infinite' };
   'grenades:changed': { count: number };
-  'score:changed':    { score: number; delta: number };
-  'enemy:killed':     { typeId: EnemyTypeId; x: number; y: number };
-  'boss:spawned':     { id: string; maxHp: number };
-  'boss:hp':          { hp: number; max: number; phase: number };
+  'score:changed': { score: number; delta: number };
+  'enemy:killed': { typeId: EnemyTypeId; x: number; y: number };
+  'boss:spawned': { id: string; maxHp: number };
+  'boss:hp': { hp: number; max: number; phase: number };
   'checkpoint:reached': { id: string };
-  'level:complete':   { levelId: string; timeMs: number; score: number };
-  'quality:changed':  { level: QualityLevel };
+  'level:complete': { levelId: string; timeMs: number; score: number };
+  'quality:changed': { level: QualityLevel };
 }
 export interface GameEventBus {
   on<K extends keyof GameEventMap>(k: K, fn: (p: GameEventMap[K]) => void): () => void;
@@ -501,11 +529,11 @@ export interface GameEventBus {
 
 Três escopos com tempos de vida distintos — a confusão entre eles é uma fonte clássica de bugs:
 
-| Escopo | Vive enquanto | Persistido? | Conteúdo |
-|---|---|---|---|
-| `ProfileState` | para sempre | **sim** (localStorage) | fases desbloqueadas, high score, settings, estatísticas |
-| `RunState` | uma tentativa (do start ao game over) | não | vidas, score da run, checkpoint atual, arma/munição atual, tempo |
-| `LevelRuntime` | uma carga de fase | não | entidades vivas, triggers disparados, spawns consumidos, estado do boss |
+| Escopo         | Vive enquanto                         | Persistido?            | Conteúdo                                                                |
+| -------------- | ------------------------------------- | ---------------------- | ----------------------------------------------------------------------- |
+| `ProfileState` | para sempre                           | **sim** (localStorage) | fases desbloqueadas, high score, settings, estatísticas                 |
+| `RunState`     | uma tentativa (do start ao game over) | não                    | vidas, score da run, checkpoint atual, arma/munição atual, tempo        |
+| `LevelRuntime` | uma carga de fase                     | não                    | entidades vivas, triggers disparados, spawns consumidos, estado do boss |
 
 ```ts
 interface RunState {
@@ -517,9 +545,11 @@ interface RunState {
   loadout: { weaponId: WeaponId; ammo: number | 'infinite'; grenades: number };
 }
 
-interface CheckpointSnapshot {          // serializável, sem objetos Phaser
+interface CheckpointSnapshot {
+  // serializável, sem objetos Phaser
   id: string;
-  spawnX: number; spawnY: number;
+  spawnX: number;
+  spawnY: number;
   score: number;
   loadout: RunState['loadout'];
   consumedTriggerIds: string[];
@@ -573,17 +603,17 @@ Regra dura: nenhum arquivo fora de `game/input/` e `ui/touch/` pode importar
 
 Sentir bem é o requisito nº 1 do briefing ("responsividade > realismo"). Concretamente:
 
-| Técnica | Valor inicial | Efeito |
-|---|---|---|
-| Aceleração no solo | ~0.09 s até velocidade máxima | resposta imediata sem parecer gelo |
-| Fricção ao soltar | ~0.06 s até parar | para onde o jogador espera |
-| Coyote time | 100 ms | pulo perdoa sair da plataforma |
-| Jump buffer | 120 ms | pulo perdoa apertar cedo demais |
-| Pulo variável | cortar velocidade em 50% ao soltar | altura controlável |
-| Gravidade assimétrica | subida 1.0× / queda 1.6× | queda "com peso", arcade |
-| Air control | 70% do controle do solo | manobrável no ar |
-| I-frames pós-dano | 900 ms com pisca a 12 Hz | leitura clara |
-| Knockback | horizontal curto, sem perder controle | não frustra |
+| Técnica               | Valor inicial                         | Efeito                             |
+| --------------------- | ------------------------------------- | ---------------------------------- |
+| Aceleração no solo    | ~0.09 s até velocidade máxima         | resposta imediata sem parecer gelo |
+| Fricção ao soltar     | ~0.06 s até parar                     | para onde o jogador espera         |
+| Coyote time           | 100 ms                                | pulo perdoa sair da plataforma     |
+| Jump buffer           | 120 ms                                | pulo perdoa apertar cedo demais    |
+| Pulo variável         | cortar velocidade em 50% ao soltar    | altura controlável                 |
+| Gravidade assimétrica | subida 1.0× / queda 1.6×              | queda "com peso", arcade           |
+| Air control           | 70% do controle do solo               | manobrável no ar                   |
+| I-frames pós-dano     | 900 ms com pisca a 12 Hz              | leitura clara                      |
+| Knockback             | horizontal curto, sem perder controle | não frustra                        |
 
 Todos esses números vivem em `core/config/tuning.ts` — zero constantes mágicas espalhadas.
 A física do movimento é uma função pura `stepMovement(state, input, dt) → intent` e o Actor
@@ -613,11 +643,11 @@ FSM compartilhada em `core/fsm/` com os estados exigidos:
 
 MVP:
 
-| Inimigo | HP | Comportamento | Papel |
-|---|---|---|---|
-| **Soldado** | 20 | patrulha, detecta em cone de 220px, atira em rajadas de 3, recua se colado | densidade, ensina o loop de combate |
-| **Soldado Pesado** | 70 | lento, metralhadora com telegrafo longo, resiste a knockback | força reposicionamento |
-| **Torreta** | 40 | imóvel, gira, tiro previsível em arco, ponto fraco na base | ensina uso de cobertura e granada |
+| Inimigo            | HP  | Comportamento                                                              | Papel                               |
+| ------------------ | --- | -------------------------------------------------------------------------- | ----------------------------------- |
+| **Soldado**        | 20  | patrulha, detecta em cone de 220px, atira em rajadas de 3, recua se colado | densidade, ensina o loop de combate |
+| **Soldado Pesado** | 70  | lento, metralhadora com telegrafo longo, resiste a knockback               | força reposicionamento              |
+| **Torreta**        | 40  | imóvel, gira, tiro previsível em arco, ponto fraco na base                 | ensina uso de cobertura e granada   |
 
 Percepção (`canSeePlayer`) é calculada na camada `game` (raycast contra tiles) e **injetada**
 no contexto — assim o brain continua puro e testável com valores sintéticos.
@@ -632,6 +662,7 @@ Armas são **dados**, não classes. `WeaponDef` (§6) descreve tudo; `tryFire()`
 que devolve `ShotRequest[]`; o `CombatSystem` materializa os projéteis a partir do pool.
 
 Adicionar uma arma nova:
+
 1. entrada em `core/config/weapons.data.ts`;
 2. chaves de FX/áudio no manifesto;
 3. (opcional) animação de tiro específica.
@@ -652,6 +683,7 @@ resolvidas por `core/combat/overlap.ts` (query de círculo contra hurtboxes) —
 ## 12. Level Architecture
 
 **Autoria:** Tiled. Um `.tmj` por fase contendo:
+
 - `layer:bg_far`, `bg_near` — parallax (imagens, não tiles)
 - `layer:solid` — colisão (tiles 16×16)
 - `layer:deco` — decoração sem colisão
@@ -667,6 +699,7 @@ resolvidas por `core/combat/overlap.ts` (query de círculo contra hurtboxes) —
 build (`tools/validate-levels.mjs`), então uma fase quebrada não chega em produção.
 
 **Fase 1 — "Cais de Quarentena"** (~2–3 min):
+
 1. **Desembarque** (0–15 s) — sem inimigos, ensina mover/pular.
 2. **Primeiro contato** (15–45 s) — 3 soldados, cobertura, barris explosivos.
 3. **Plataformas** (45–80 s) — verticalidade, 1 torreta, pickup de metralhadora.
@@ -683,6 +716,7 @@ Fases futuras carregam por code-splitting dinâmico (`import()` do módulo de sc
 ## 13. Camera Architecture
 
 `CameraDirector` implementa:
+
 - **Follow com deadzone**: caixa central de ~120×80 px lógicos; o player se move dentro dela
   sem mover a câmera → menos enjoo em micro-ajustes.
 - **Lookahead**: deslocamento de até 64 px na direção de corrida/mira, com lerp de ~0.12.
@@ -702,6 +736,7 @@ Fases futuras carregam por code-splitting dinâmico (`import()` do módulo de sc
 Mobile é plataforma de primeira classe: mesmo gameplay, apresentação adaptada.
 
 **Controles (DOM, Pointer Events):**
+
 - Metade esquerda: joystick virtual flutuante — nasce onde o dedo toca (não em posição fixa),
   raio 56 px CSS, deadzone 18%, saída analógica. Zona morta inferior respeita a home bar.
 - Metade direita: 4 botões (`Jump`, `Shoot`, `Grenade`, `Special`), diâmetro mínimo **56 px CSS**
@@ -731,17 +766,17 @@ partículas/parallax automaticamente se o FPS médio cair.
 
 **Especificação de arte (fixada antes de produzir qualquer sprite — vai para `docs/ART_SPEC.md`):**
 
-| Parâmetro | Valor |
-|---|---|
-| Resolução lógica | 640 × 360 (altura fixa; largura 640–800) |
-| Grid de tiles | 16 × 16 px |
-| Frame do player | 64 × 64 (altura visível ~44 px), colisão 20 × 40 |
-| Frame de inimigo comum | 48 × 48 |
-| Frame do mini-boss | 192 × 160 (montado em partes) |
-| PPU | 1 unidade de mundo = 1 pixel de arte (escala 1:1) |
-| Pixel perfect | NEAREST, `roundPixels: true`, sem rotação livre de sprites (rotação só em projéteis) |
-| Paleta | 48 cores fixas, documentada em `ART_SPEC.md` |
-| Formato | PNG-8 quando possível, empacotado em atlas |
+| Parâmetro              | Valor                                                                                |
+| ---------------------- | ------------------------------------------------------------------------------------ |
+| Resolução lógica       | 640 × 360 (altura fixa; largura 640–800)                                             |
+| Grid de tiles          | 16 × 16 px                                                                           |
+| Frame do player        | 64 × 64 (altura visível ~44 px), colisão 20 × 40                                     |
+| Frame de inimigo comum | 48 × 48                                                                              |
+| Frame do mini-boss     | 192 × 160 (montado em partes)                                                        |
+| PPU                    | 1 unidade de mundo = 1 pixel de arte (escala 1:1)                                    |
+| Pixel perfect          | NEAREST, `roundPixels: true`, sem rotação livre de sprites (rotação só em projéteis) |
+| Paleta                 | 48 cores fixas, documentada em `ART_SPEC.md`                                         |
+| Formato                | PNG-8 quando possível, empacotado em atlas                                           |
 
 **Fluxo:** Aseprite (`.aseprite` versionado em `art-src/`, fora do bundle) → export
 spritesheet + JSON → `tools/pack-atlas.mjs` empacota por domínio → `public/assets/atlas/`.
@@ -751,15 +786,15 @@ spritesheet + JSON → `tools/pack-atlas.mjs` empacota por domínio → `public/
 ```ts
 export const ATLASES = {
   characters: { texture: 'atlas/characters.png', data: 'atlas/characters.json' },
-  enemies:    { texture: 'atlas/enemies.png',    data: 'atlas/enemies.json' },
-  fx:         { texture: 'atlas/fx.png',         data: 'atlas/fx.json' },
-  env:        { texture: 'atlas/env.png',        data: 'atlas/env.json' },
-  ui:         { texture: 'atlas/ui.png',         data: 'atlas/ui.json' },
+  enemies: { texture: 'atlas/enemies.png', data: 'atlas/enemies.json' },
+  fx: { texture: 'atlas/fx.png', data: 'atlas/fx.json' },
+  env: { texture: 'atlas/env.png', data: 'atlas/env.json' },
+  ui: { texture: 'atlas/ui.png', data: 'atlas/ui.json' },
 } as const;
 
 export const SPRITES = {
   'player.idle': { atlas: 'characters', prefix: 'dara/idle/', frames: 6 },
-  'player.run':  { atlas: 'characters', prefix: 'dara/run/',  frames: 8 },
+  'player.run': { atlas: 'characters', prefix: 'dara/run/', frames: 8 },
   // ...
 } as const;
 ```
@@ -902,18 +937,19 @@ interface SaveDataV1 {
 
 **Metas:**
 
-| Dispositivo | Meta | Piso aceitável |
-|---|---|---|
-| Desktop moderno | 60 fps estável | 60 |
-| Android médio (~2022, gama média) | 60 fps | 45 fps sem quedas em combate |
-| iPhone SE / tablets antigos | 60 fps | 45 fps |
-| Carregamento inicial (4G) | < 5 s até o menu | < 8 s |
-| Bundle JS (gzip) | < 700 KB | < 1 MB |
-| Memória de textura | < 96 MB | < 128 MB |
-| Draw calls típicos | < 25/frame | < 40 |
-| Alocação durante combate | ~0 (nenhum GC visível) | sem stutter perceptível |
+| Dispositivo                       | Meta                   | Piso aceitável               |
+| --------------------------------- | ---------------------- | ---------------------------- |
+| Desktop moderno                   | 60 fps estável         | 60                           |
+| Android médio (~2022, gama média) | 60 fps                 | 45 fps sem quedas em combate |
+| iPhone SE / tablets antigos       | 60 fps                 | 45 fps                       |
+| Carregamento inicial (4G)         | < 5 s até o menu       | < 8 s                        |
+| Bundle JS (gzip)                  | < 700 KB               | < 1 MB                       |
+| Memória de textura                | < 96 MB                | < 128 MB                     |
+| Draw calls típicos                | < 25/frame             | < 40                         |
+| Alocação durante combate          | ~0 (nenhum GC visível) | sem stutter perceptível      |
 
 **Técnicas:**
+
 - **Pooling** de tudo que nasce e morre (projéteis, partículas, inimigos, destroços, textos).
   Pools pré-alocados no load da fase.
 - **Atlas por domínio** → batching. Ordem de render agrupada por textura.
@@ -937,6 +973,7 @@ interface SaveDataV1 {
 ## 22. Testing Strategy
 
 **Unit (Vitest) — alvo: ~80% de cobertura em `src/core/`, o único lugar onde cobertura importa.**
+
 - dano, i-frames, resistências, knockback
 - cooldown de arma, munição, spread, `tryFire` em todos os estados
 - FSM de player (coyote time, jump buffer, transições)
@@ -953,6 +990,7 @@ scriptado e sem render: "150 frames de MOVE_RIGHT + SHOOT matam o soldado e o sc
 Possível justamente porque `core/` não depende de Phaser.
 
 **Browser / E2E (Playwright + Chromium já instalado).**
+
 - Smoke: o jogo carrega, o menu aparece, "JOGAR" inicia a fase, nenhum erro de console.
 - Replay determinístico: `?e2e=1&replay=level01-clear` roda um replay gravado até o fim da fase;
   falha se divergir. É o teste de regressão mais valioso do projeto.
@@ -973,6 +1011,7 @@ bundle de produção** por dead-code elimination (`import.meta.env.DEV` / flag d
 código de gameplay não contém nenhum `if (debug)`.
 
 Painéis registráveis (cada sistema registra o seu, sem o service conhecer os sistemas):
+
 - FPS, frame time, draw calls, contagem de entidades por pool, ocupação dos pools
 - Hitboxes/hurtboxes/corpos Arcade, vetores de velocidade
 - Estado do player (FSM, coyote, buffer, i-frames, arma, munição)
@@ -1006,15 +1045,15 @@ Painéis registráveis (cada sistema registra o seu, sem o service conhecer os s
 Cada fase termina com um critério verificável. Fases dependem estritamente da anterior, exceto
 onde indicado.
 
-| Fase | Entrega | Depende de | Critério de saída |
-|---|---|---|---|
-| **0 — Architecture** | repo, Vite/TS/ESLint/Prettier/Vitest/Playwright, `core/` vazio com regra de lint, event bus, tuning, save, manifesto, scale handler, debug shell, CI | — | `npm run ci` verde; canvas 640×360 escalando corretamente em desktop e celular |
-| **1 — Prototype** | player completo (mover, pulo, mira, tiro), câmera, tilemap de teste, input teclado+gamepad, pool de projéteis | 0 | O movimento **sente-se bom** — validação subjetiva com 3+ pessoas antes de seguir |
-| **2 — Combat** | dano, i-frames, knockback, 3 inimigos com brains, 3 armas, granadas, explosões, destrutíveis, matriz de colisão | 1 | Combate legível e justo; unit tests de `core/combat` e `core/enemies` passando |
-| **3 — Vertical Slice** | Fase 1 completa no Tiled, checkpoint, mini-boss, HUD DOM, menus, áudio, FX, progressão | 2 | Fase jogável do início ao fim, com morte e retorno ao checkpoint funcionando |
-| **4 — Mobile** | controles touch, multitouch, gate de orientação, safe areas, perf mobile, `QualitySystem` | 3 (pode começar em paralelo após 2) | 45+ fps em Android de gama média real; jogável só com os dedos |
-| **5 — Polish** | arte final, animações, partículas, hit stop, screen shake, mix de áudio, feel pass, tutorial silencioso | 3, 4 | Playtest externo: pessoas terminam a fase sem instruções |
-| **6 — Production** | otimização, testes E2E de replay, PWA, deploy, telemetria básica opcional | 5 | Build publicada, CI verde, orçamento de performance respeitado |
+| Fase                    | Entrega                                                                                                                                                                                                             | Depende de                          | Critério de saída                                                              |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------ |
+| **0 — Architecture** ✅ | repo, Vite/TS/ESLint/Prettier/Vitest/Playwright, `core/` com fronteira aplicada por lint, event bus, tuning, save, manifesto, scale handler, debug, CI                                                              | —                                   | **concluída** — `npm run ci` verde; 67 testes unitários; 14 testes de browser  |
+| **1 — Prototype** ✅    | player completo (mover, pulo variável+coyote+buffer, mira 8-way, tiro), câmera com deadzone/lookahead/trauma, tilemap com plataformas de sentido único, parallax, teclado+gamepad+touch, pool de projéteis, respawn | 0                                   | **concluída** — falta o gate subjetivo de game feel (playtest com 3+ pessoas)  |
+| **2 — Combat**          | dano, i-frames, knockback, 3 inimigos com brains, 3 armas, granadas, explosões, destrutíveis, matriz de colisão                                                                                                     | 1                                   | Combate legível e justo; unit tests de `core/combat` e `core/enemies` passando |
+| **3 — Vertical Slice**  | Fase 1 completa no Tiled, checkpoint, mini-boss, HUD DOM, menus, áudio, FX, progressão                                                                                                                              | 2                                   | Fase jogável do início ao fim, com morte e retorno ao checkpoint funcionando   |
+| **4 — Mobile**          | controles touch, multitouch, gate de orientação, safe areas, perf mobile, `QualitySystem`                                                                                                                           | 3 (pode começar em paralelo após 2) | 45+ fps em Android de gama média real; jogável só com os dedos                 |
+| **5 — Polish**          | arte final, animações, partículas, hit stop, screen shake, mix de áudio, feel pass, tutorial silencioso                                                                                                             | 3, 4                                | Playtest externo: pessoas terminam a fase sem instruções                       |
+| **6 — Production**      | otimização, testes E2E de replay, PWA, deploy, telemetria básica opcional                                                                                                                                           | 5                                   | Build publicada, CI verde, orçamento de performance respeitado                 |
 
 Atividade contínua e **paralela desde a Fase 1**: produção de arte e áudio. É o caminho crítico
 real do projeto (§27) — placeholders programáticos permitem que a engenharia nunca fique bloqueada.
@@ -1026,6 +1065,7 @@ real do projeto (§27) — placeholders programáticos permitem que a engenharia
 O MVP está concluído quando **todos** os itens abaixo são verdadeiros:
 
 **Gameplay**
+
 - [ ] Player: correr, acelerar/desacelerar, pular (variável, coyote, buffer), cair, mirar em
       8 direções, atirar, lançar granada, tomar dano, i-frames, morrer, respawnar
 - [ ] 3 armas funcionais (pistola, metralhadora, escopeta) com munição e troca por pickup
@@ -1038,6 +1078,7 @@ O MVP está concluído quando **todos** os itens abaixo são verdadeiros:
 - [ ] Score, vidas e Game Over
 
 **Plataformas**
+
 - [ ] Chrome, Edge, Firefox e Safari desktop
 - [ ] Android Chrome e iOS Safari, jogável apenas com touch
 - [ ] Gamepad no desktop
@@ -1045,6 +1086,7 @@ O MVP está concluído quando **todos** os itens abaixo são verdadeiros:
 - [ ] Safe areas respeitadas
 
 **Apresentação**
+
 - [ ] HUD: vida, arma, munição, granadas, score, boss bar, pause
 - [ ] Menus: Main, Pause, Settings, Game Over, Level Complete
 - [ ] Música da fase + música do boss + no mínimo 15 SFX
@@ -1052,6 +1094,7 @@ O MVP está concluído quando **todos** os itens abaixo são verdadeiros:
 - [ ] Todos os assets originais
 
 **Qualidade**
+
 - [ ] 60 fps no desktop de referência; ≥ 45 fps no Android de referência
 - [ ] Settings persistidos entre sessões
 - [ ] Zero erros de console em uma partida completa
@@ -1065,18 +1108,18 @@ online, contas, cloud save, achievements, seleção de personagem, dificuldades.
 
 ## 27. Risks
 
-| # | Risco | Prob. | Impacto | Mitigação |
-|---|---|---|---|---|
-| R1 | **Produção de arte é o caminho crítico.** Um run & gun bonito precisa de centenas de frames originais. Engenharia termina e o jogo fica sem cara. | Alta | Alto | Definir `ART_SPEC.md` **antes** de produzir; kit de placeholder programático desde a Fase 0; escopo de arte da Fase 1 fechado e listado por frame; decidir §2.1(f) já |
-| R2 | Phaser 4 é novo (4 meses): menos material, plugins não portados, bugs de renderer | Média | Médio | Usar só API mainstream; isolar tudo em `game/`; `core/` livre de Phaser permite trocar para 3.90 em dias |
-| R3 | Performance em Android de gama média com muitas partículas | Média | Alto | Orçamento medido no CI desde a Fase 2; pooling; `QualitySystem`; testar em device real desde a Fase 1, não na 6 |
-| R4 | Áudio no iOS (unlock, latência, interrupções por chamada) | Média | Médio | Unlock explícito por gesto; audio sprite; recuperar contexto em `visibilitychange`; testar em iPhone real cedo |
-| R5 | "Game feel" insatisfatório — o risco de produto mais grave e o mais fácil de ignorar | Média | **Crítico** | Fase 1 tem gate subjetivo obrigatório; todas as constantes ajustáveis em runtime no debug; playtest externo antes da Fase 5 |
-| R6 | Escopo do boss inflar | Média | Médio | 2 fases e 3 padrões travados no MVP; qualquer ideia nova vai para o backlog pós-MVP |
-| R7 | Controles touch imprecisos comparados ao teclado | Média | Alto | Joystick flutuante, botões grandes, auto-aim assistido leve no mobile (não no desktop), sessão de tuning dedicada na Fase 4 |
-| R8 | Ecossistema TypeScript em transição (TS 6/7) | Baixa | Baixo | Fixar TS 6.0.3; reavaliar no 7.1 (~out/2026), quando `typescript-eslint` deve suportar |
-| R9 | Semelhança acidental com obras existentes | Baixa | Alto | Bíblia visual própria (§2.2); revisão de originalidade a cada lote de arte; nenhum asset de referência entra no repo |
-| R10 | Vazamento de regras para dentro das Scenes com o tempo | Média | Médio | Regra ESLint bloqueando `phaser` em `core/`; revisão de PR checa se lógica nova nasceu em `core/` |
+| #   | Risco                                                                                                                                             | Prob. | Impacto     | Mitigação                                                                                                                                                             |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R1  | **Produção de arte é o caminho crítico.** Um run & gun bonito precisa de centenas de frames originais. Engenharia termina e o jogo fica sem cara. | Alta  | Alto        | Definir `ART_SPEC.md` **antes** de produzir; kit de placeholder programático desde a Fase 0; escopo de arte da Fase 1 fechado e listado por frame; decidir §2.1(f) já |
+| R2  | Phaser 4 é novo (4 meses): menos material, plugins não portados, bugs de renderer                                                                 | Média | Médio       | Usar só API mainstream; isolar tudo em `game/`; `core/` livre de Phaser permite trocar para 3.90 em dias                                                              |
+| R3  | Performance em Android de gama média com muitas partículas                                                                                        | Média | Alto        | Orçamento medido no CI desde a Fase 2; pooling; `QualitySystem`; testar em device real desde a Fase 1, não na 6                                                       |
+| R4  | Áudio no iOS (unlock, latência, interrupções por chamada)                                                                                         | Média | Médio       | Unlock explícito por gesto; audio sprite; recuperar contexto em `visibilitychange`; testar em iPhone real cedo                                                        |
+| R5  | "Game feel" insatisfatório — o risco de produto mais grave e o mais fácil de ignorar                                                              | Média | **Crítico** | Fase 1 tem gate subjetivo obrigatório; todas as constantes ajustáveis em runtime no debug; playtest externo antes da Fase 5                                           |
+| R6  | Escopo do boss inflar                                                                                                                             | Média | Médio       | 2 fases e 3 padrões travados no MVP; qualquer ideia nova vai para o backlog pós-MVP                                                                                   |
+| R7  | Controles touch imprecisos comparados ao teclado                                                                                                  | Média | Alto        | Joystick flutuante, botões grandes, auto-aim assistido leve no mobile (não no desktop), sessão de tuning dedicada na Fase 4                                           |
+| R8  | Ecossistema TypeScript em transição (TS 6/7)                                                                                                      | Baixa | Baixo       | Fixar TS 6.0.3; reavaliar no 7.1 (~out/2026), quando `typescript-eslint` deve suportar                                                                                |
+| R9  | Semelhança acidental com obras existentes                                                                                                         | Baixa | Alto        | Bíblia visual própria (§2.2); revisão de originalidade a cada lote de arte; nenhum asset de referência entra no repo                                                  |
+| R10 | Vazamento de regras para dentro das Scenes com o tempo                                                                                            | Média | Médio       | Regra ESLint bloqueando `phaser` em `core/`; revisão de PR checa se lógica nova nasceu em `core/`                                                                     |
 
 ---
 
@@ -1150,4 +1193,4 @@ implementação prematura não é.
 
 ---
 
-*Aguardando aprovação. Nenhum código de gameplay será escrito antes disso.*
+_Aguardando aprovação. Nenhum código de gameplay será escrito antes disso._

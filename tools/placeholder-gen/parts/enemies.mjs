@@ -110,7 +110,10 @@ export function buildEnemyFrames() {
 
   /* Soldado: idle 4, walk 6, attack 4, hurt 2, death 5 */
   [0, 0, -1, -1].forEach((bob, i) =>
-    add(`soldier/idle/${i}`, frame(S, (c) => soldier(c, { bob, legs: [1, 0, -1, 0] }))),
+    add(
+      `soldier/idle/${i}`,
+      frame(S, (c) => soldier(c, { bob, legs: [1, 0, -1, 0] })),
+    ),
   );
   const WALK = [
     [4, 0, -4, 0],
@@ -126,18 +129,29 @@ export function buildEnemyFrames() {
       frame(S, (c) => soldier(c, { bob: i % 3 === 1 ? -1 : 0, legs, lean: 1 })),
     ),
   );
-  [
-    { armFwd: 0 },
-    { armFwd: -2, flash: true },
-    { armFwd: -1, flash: true },
-    { armFwd: 0 },
-  ].forEach((o, i) =>
-    add(`soldier/attack/${i}`, frame(S, (c) => soldier(c, { ...o, legs: [2, 0, -2, 0] }))),
+  [{ armFwd: 0 }, { armFwd: -2, flash: true }, { armFwd: -1, flash: true }, { armFwd: 0 }].forEach(
+    (o, i) =>
+      add(
+        `soldier/attack/${i}`,
+        frame(S, (c) => soldier(c, { ...o, legs: [2, 0, -2, 0] })),
+      ),
   );
-  add(`soldier/hurt/0`, frame(S, (c) => soldier(c, { lean: -3, flash: true, legs: [-2, 0, 2, 0] })));
-  add(`soldier/hurt/1`, frame(S, (c) => soldier(c, { lean: -2, bob: 1, legs: [-3, 1, 3, 0] })));
-  add(`soldier/death/0`, frame(S, (c) => soldier(c, { lean: -4, bob: 2, legs: [-4, 1, 4, 1] })));
-  add(`soldier/death/1`, frame(S, (c) => soldier(c, { lean: -6, bob: 6, legs: [-6, 4, 6, 4] })));
+  add(
+    `soldier/hurt/0`,
+    frame(S, (c) => soldier(c, { lean: -3, flash: true, legs: [-2, 0, 2, 0] })),
+  );
+  add(
+    `soldier/hurt/1`,
+    frame(S, (c) => soldier(c, { lean: -2, bob: 1, legs: [-3, 1, 3, 0] })),
+  );
+  add(
+    `soldier/death/0`,
+    frame(S, (c) => soldier(c, { lean: -4, bob: 2, legs: [-4, 1, 4, 1] })),
+  );
+  add(
+    `soldier/death/1`,
+    frame(S, (c) => soldier(c, { lean: -6, bob: 6, legs: [-6, 4, 6, 4] })),
+  );
   add(
     `soldier/death/2`,
     frame(S, (c) => {
@@ -165,7 +179,10 @@ export function buildEnemyFrames() {
 
   /* Pesado: idle 4, walk 6, attack 5, hurt 2, death 6 */
   [0, -1, 0, 1].forEach((bob, i) =>
-    add(`heavy/idle/${i}`, frame(H, (c) => heavy(c, { bob, legs: [0, 0], spin: 0 }))),
+    add(
+      `heavy/idle/${i}`,
+      frame(H, (c) => heavy(c, { bob, legs: [0, 0], spin: 0 })),
+    ),
   );
   [
     [0, 2],
@@ -175,17 +192,29 @@ export function buildEnemyFrames() {
     [1, -1],
     [0, 1],
   ].forEach((legs, i) =>
-    add(`heavy/walk/${i}`, frame(H, (c) => heavy(c, { bob: i % 2, legs, spin: i }))),
+    add(
+      `heavy/walk/${i}`,
+      frame(H, (c) => heavy(c, { bob: i % 2, legs, spin: i })),
+    ),
   );
   for (let i = 0; i < 5; i++)
     add(
       `heavy/attack/${i}`,
       frame(H, (c) => heavy(c, { bob: i % 2, spin: i * 2, flash: i > 0, lean: i > 0 ? -1 : 0 })),
     );
-  add(`heavy/hurt/0`, frame(H, (c) => heavy(c, { flash: true, lean: -3 })));
-  add(`heavy/hurt/1`, frame(H, (c) => heavy(c, { bob: 1, lean: -2 })));
+  add(
+    `heavy/hurt/0`,
+    frame(H, (c) => heavy(c, { flash: true, lean: -3 })),
+  );
+  add(
+    `heavy/hurt/1`,
+    frame(H, (c) => heavy(c, { bob: 1, lean: -2 })),
+  );
   for (let i = 0; i < 3; i++)
-    add(`heavy/death/${i}`, frame(H, (c) => heavy(c, { bob: 2 + i * 3, lean: -3 - i * 2 })));
+    add(
+      `heavy/death/${i}`,
+      frame(H, (c) => heavy(c, { bob: 2 + i * 3, lean: -3 - i * 2 })),
+    );
   add(
     `heavy/death/3`,
     frame(H, (c) => {
@@ -212,16 +241,40 @@ export function buildEnemyFrames() {
   );
 
   /* Torreta: idle 2, attack 4, hurt 2, death 4 */
-  add(`turret/idle/0`, frame(T, (c) => turret(c, { barrelDeg: -10 })));
-  add(`turret/idle/1`, frame(T, (c) => turret(c, { barrelDeg: -10, coreOn: false })));
-  [-20, -10, 0, -10].forEach((barrelDeg, i) =>
-    add(`turret/attack/${i}`, frame(T, (c) => turret(c, { barrelDeg, flash: i === 1 || i === 2 }))),
+  add(
+    `turret/idle/0`,
+    frame(T, (c) => turret(c, { barrelDeg: -10 })),
   );
-  add(`turret/hurt/0`, frame(T, (c) => turret(c, { barrelDeg: -10, flash: true })));
-  add(`turret/hurt/1`, frame(T, (c) => turret(c, { barrelDeg: -6, coreOn: false })));
-  add(`turret/death/0`, frame(T, (c) => turret(c, { barrelDeg: 10, flash: true })));
-  add(`turret/death/1`, frame(T, (c) => turret(c, { barrelDeg: 25, coreOn: false })));
-  add(`turret/death/2`, frame(T, (c) => turret(c, { broken: true })));
+  add(
+    `turret/idle/1`,
+    frame(T, (c) => turret(c, { barrelDeg: -10, coreOn: false })),
+  );
+  [-20, -10, 0, -10].forEach((barrelDeg, i) =>
+    add(
+      `turret/attack/${i}`,
+      frame(T, (c) => turret(c, { barrelDeg, flash: i === 1 || i === 2 })),
+    ),
+  );
+  add(
+    `turret/hurt/0`,
+    frame(T, (c) => turret(c, { barrelDeg: -10, flash: true })),
+  );
+  add(
+    `turret/hurt/1`,
+    frame(T, (c) => turret(c, { barrelDeg: -6, coreOn: false })),
+  );
+  add(
+    `turret/death/0`,
+    frame(T, (c) => turret(c, { barrelDeg: 10, flash: true })),
+  );
+  add(
+    `turret/death/1`,
+    frame(T, (c) => turret(c, { barrelDeg: 25, coreOn: false })),
+  );
+  add(
+    `turret/death/2`,
+    frame(T, (c) => turret(c, { broken: true })),
+  );
   add(
     `turret/death/3`,
     frame(T, (c) => {

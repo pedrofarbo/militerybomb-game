@@ -65,8 +65,7 @@ export class Canvas {
     const c = rgba(color, alpha);
     const r2 = r * r;
     for (let j = -r; j <= r; j++)
-      for (let i = -r; i <= r; i++)
-        if (i * i + j * j <= r2) this.px(cx + i, cy + j, c);
+      for (let i = -r; i <= r; i++) if (i * i + j * j <= r2) this.px(cx + i, cy + j, c);
     return this;
   }
 

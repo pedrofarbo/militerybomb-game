@@ -22,15 +22,7 @@ const GEAR = 'con3';
 const GEAR_DARK = 'con2';
 
 function trooper(c, o = {}) {
-  const {
-    bob = 0,
-    lean = 0,
-    legs = [0, 0, 0, 0],
-    knees = 0,
-    armStub = 0,
-    dead = false,
-    hurt = false,
-  } = o;
+  const { bob = 0, lean = 0, legs = [0, 0, 0, 0], armStub = 0, dead = false, hurt = false } = o;
 
   const suit = hurt ? 'rust5' : SUIT;
   const [flx, fly, blx, bly] = legs;
@@ -128,7 +120,10 @@ export function buildCharacterFrames() {
 
   // idle — respiração de 6 frames
   IDLE_BOB.forEach((bob, i) =>
-    add(`dara/idle/${i}`, frame((c) => trooper(c, { bob, legs: [1, 0, -1, 0] }))),
+    add(
+      `dara/idle/${i}`,
+      frame((c) => trooper(c, { bob, legs: [1, 0, -1, 0] })),
+    ),
   );
 
   // run — 8 frames
@@ -140,16 +135,34 @@ export function buildCharacterFrames() {
   );
 
   // jump (subida) — 2 frames
-  add(`dara/jump/0`, frame((c) => trooper(c, { bob: -2, legs: [3, -4, -2, -2] })));
-  add(`dara/jump/1`, frame((c) => trooper(c, { bob: -1, legs: [4, -5, -3, -3] })));
+  add(
+    `dara/jump/0`,
+    frame((c) => trooper(c, { bob: -2, legs: [3, -4, -2, -2] })),
+  );
+  add(
+    `dara/jump/1`,
+    frame((c) => trooper(c, { bob: -1, legs: [4, -5, -3, -3] })),
+  );
 
   // fall — 2 frames
-  add(`dara/fall/0`, frame((c) => trooper(c, { bob: 1, legs: [-2, -2, 3, -1] })));
-  add(`dara/fall/1`, frame((c) => trooper(c, { bob: 1, legs: [-3, -1, 4, -2] })));
+  add(
+    `dara/fall/0`,
+    frame((c) => trooper(c, { bob: 1, legs: [-2, -2, 3, -1] })),
+  );
+  add(
+    `dara/fall/1`,
+    frame((c) => trooper(c, { bob: 1, legs: [-3, -1, 4, -2] })),
+  );
 
   // land — 2 frames (agachamento de impacto)
-  add(`dara/land/0`, frame((c) => trooper(c, { bob: 4, legs: [4, 3, -4, 3] })));
-  add(`dara/land/1`, frame((c) => trooper(c, { bob: 2, legs: [2, 1, -2, 1] })));
+  add(
+    `dara/land/0`,
+    frame((c) => trooper(c, { bob: 4, legs: [4, 3, -4, 3] })),
+  );
+  add(
+    `dara/land/1`,
+    frame((c) => trooper(c, { bob: 2, legs: [2, 1, -2, 1] })),
+  );
 
   // hurt — 2 frames
   add(
@@ -162,8 +175,14 @@ export function buildCharacterFrames() {
   );
 
   // death — 6 frames: cai, gira, some em fumaça
-  add(`dara/death/0`, frame((c) => trooper(c, { bob: 2, lean: -4, legs: [-4, 1, 4, 1] })));
-  add(`dara/death/1`, frame((c) => trooper(c, { bob: 6, lean: -6, legs: [-6, 3, 6, 3] })));
+  add(
+    `dara/death/0`,
+    frame((c) => trooper(c, { bob: 2, lean: -4, legs: [-4, 1, 4, 1] })),
+  );
+  add(
+    `dara/death/1`,
+    frame((c) => trooper(c, { bob: 6, lean: -6, legs: [-6, 3, 6, 3] })),
+  );
   add(
     `dara/death/2`,
     frame((c) => {

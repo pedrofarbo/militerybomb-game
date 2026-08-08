@@ -1,0 +1,8 @@
+dist/
+node_modules/
+coverage/
+public/assets/
+docs/placeholder-preview.html
+docs/ASSET_INVENTORY.md
+src/assets/*.generated.ts
+package-lock.json

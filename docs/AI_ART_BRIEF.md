@@ -16,13 +16,13 @@ Ele é normativo em cima de duas fontes que **não** devem ser reescritas aqui:
 **Modelos de imagem generativos não produzem spritesheets de pixel art utilizáveis.**
 Isso não é pessimismo, é a restrição técnica com que este briefing foi desenhado:
 
-| Problema | Por que acontece | Consequência |
-|---|---|---|
-| "Pixel art" sai como imagem de alta resolução *imitando* pixels | o modelo gera em 1024², não num grid de 64² | pixels de tamanho irregular, grid quebrado |
-| Anti-aliasing e franjas | a saída é contínua, não indexada | viola a regra de alpha binário |
-| Centenas de cores | não há restrição de paleta na geração | viola a paleta de 48 cores |
-| Inconsistência entre frames | cada geração é independente | o personagem "ferve" durante a animação |
-| Linha de apoio flutuante | nada ancora os pés | tremor vertical na corrida |
+| Problema                                                        | Por que acontece                            | Consequência                               |
+| --------------------------------------------------------------- | ------------------------------------------- | ------------------------------------------ |
+| "Pixel art" sai como imagem de alta resolução _imitando_ pixels | o modelo gera em 1024², não num grid de 64² | pixels de tamanho irregular, grid quebrado |
+| Anti-aliasing e franjas                                         | a saída é contínua, não indexada            | viola a regra de alpha binário             |
+| Centenas de cores                                               | não há restrição de paleta na geração       | viola a paleta de 48 cores                 |
+| Inconsistência entre frames                                     | cada geração é independente                 | o personagem "ferve" durante a animação    |
+| Linha de apoio flutuante                                        | nada ancora os pés                          | tremor vertical na corrida                 |
 
 **Conclusão operacional:** a IA entra como **geradora de pose e de identidade
 visual**, e um passo de **normalização determinístico** produz o asset final.
@@ -150,15 +150,15 @@ Facing right. Aiming arm is NOT drawn — it is a separate sprite.
 
 Frame a frame, some ao prompt a pose:
 
-| Animação | Pose |
-|---|---|
-| `player.idle` | peso nos dois pés, respiração sutil, arma baixa, ombros descendo 1px |
-| `player.run` | ciclo de 8: contato → passagem baixa → empurrão → extensão, ×2 alternando pernas; tronco inclinado 1px à frente |
-| `player.jump` | impulso: joelho da frente subindo, tronco erguido, braço traseiro para trás |
-| `player.fall` | pernas separadas, joelhos relaxados, tronco levemente para trás |
-| `player.land` | agachamento de absorção, joelhos dobrados, cabeça 4px mais baixa |
-| `player.hurt` | tronco jogado 3px para trás, cabeça virada, sem cair |
-| `player.death` | 6 frames: cambaleia → cai de costas → corpo no chão → dissipa em fumaça |
+| Animação       | Pose                                                                                                            |
+| -------------- | --------------------------------------------------------------------------------------------------------------- |
+| `player.idle`  | peso nos dois pés, respiração sutil, arma baixa, ombros descendo 1px                                            |
+| `player.run`   | ciclo de 8: contato → passagem baixa → empurrão → extensão, ×2 alternando pernas; tronco inclinado 1px à frente |
+| `player.jump`  | impulso: joelho da frente subindo, tronco erguido, braço traseiro para trás                                     |
+| `player.fall`  | pernas separadas, joelhos relaxados, tronco levemente para trás                                                 |
+| `player.land`  | agachamento de absorção, joelhos dobrados, cabeça 4px mais baixa                                                |
+| `player.hurt`  | tronco jogado 3px para trás, cabeça virada, sem cair                                                            |
+| `player.death` | 6 frames: cambaleia → cai de costas → corpo no chão → dissipa em fumaça                                         |
 
 ### 3.2 Braço de mira (`characters`, 32×32, 5 direções × 2 frames)
 
@@ -341,15 +341,15 @@ assim que o primeiro lote de arte final chegar — não faça isso à mão para 
 
 O importador precisa **rejeitar** o asset (e não apenas avisar) quando:
 
-| Verificação | Critério |
-|---|---|
-| Dimensão da tira | exatamente `frameW × nFrames` por `frameH` do inventário |
-| Paleta | 0 pixels fora das 48 cores |
-| Alpha binário | 0 pixels com `0 < alpha < 255` (exceto atlas `fx`) |
-| Linha de apoio | pixel opaco mais baixo na mesma linha em todos os frames (±0 px) |
-| Frame vazio | nenhum frame 100% transparente |
-| Sangramento | nenhum pixel opaco encostando na borda do frame (exceto tiles e parallax) |
-| Encaixe (parallax/tiles) | coluna 0 compatível com a coluna `w-1` |
+| Verificação              | Critério                                                                  |
+| ------------------------ | ------------------------------------------------------------------------- |
+| Dimensão da tira         | exatamente `frameW × nFrames` por `frameH` do inventário                  |
+| Paleta                   | 0 pixels fora das 48 cores                                                |
+| Alpha binário            | 0 pixels com `0 < alpha < 255` (exceto atlas `fx`)                        |
+| Linha de apoio           | pixel opaco mais baixo na mesma linha em todos os frames (±0 px)          |
+| Frame vazio              | nenhum frame 100% transparente                                            |
+| Sangramento              | nenhum pixel opaco encostando na borda do frame (exceto tiles e parallax) |
+| Encaixe (parallax/tiles) | coluna 0 compatível com a coluna `w-1`                                    |
 
 Falha na validação = asset devolvido, com o motivo. Isso não é burocracia: é o que
 impede um sprite 1px fora do lugar de virar um tremor que ninguém consegue

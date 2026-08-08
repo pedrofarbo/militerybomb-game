@@ -31,8 +31,7 @@ function base(c, o = {}) {
   for (let i = 0; i < 5; i++) c.disc(36 + i * 30, 143 + y, 8, 'met3');
   for (let i = 0; i < 5; i++) c.ring(36 + i * 30, 143 + y, 8, 1, 'ink');
   // Faixa de perigo
-  for (let i = 0; i < 20; i++)
-    c.rect(20 + i * 8, 126 + y, 4, 4, i % 2 ? 'sig3' : 'ink');
+  for (let i = 0; i < 20; i++) c.rect(20 + i * 8, 126 + y, 4, 4, i % 2 ? 'sig3' : 'ink');
 
   // Chassi
   c.chamfer(26, 96 + y, 140, 32, hullDark, 'ink', 4);
@@ -132,13 +131,25 @@ export function buildBossFrames() {
 
   // base/idle 4 — respiração hidráulica
   [0, -1, 0, 1].forEach((bob, i) =>
-    add(`estivador/base/idle/${i}`, frame(BW, BH, (c) => base(c, { bob }))),
+    add(
+      `estivador/base/idle/${i}`,
+      frame(BW, BH, (c) => base(c, { bob })),
+    ),
   );
   // base/hurt 2
-  add(`estivador/base/hurt/0`, frame(BW, BH, (c) => base(c, { flash: true, tilt: 2 })));
-  add(`estivador/base/hurt/1`, frame(BW, BH, (c) => base(c, { bob: 1, tilt: 1, damage: 1 })));
+  add(
+    `estivador/base/hurt/0`,
+    frame(BW, BH, (c) => base(c, { flash: true, tilt: 2 })),
+  );
+  add(
+    `estivador/base/hurt/1`,
+    frame(BW, BH, (c) => base(c, { bob: 1, tilt: 1, damage: 1 })),
+  );
   // base/phase 3 — transição: abre o compartimento e expõe o núcleo
-  add(`estivador/base/phase/0`, frame(BW, BH, (c) => base(c, { damage: 1, tilt: -2 })));
+  add(
+    `estivador/base/phase/0`,
+    frame(BW, BH, (c) => base(c, { damage: 1, tilt: -2 })),
+  );
   add(
     `estivador/base/phase/1`,
     frame(BW, BH, (c) => base(c, { damage: 1, coreOpen: true, coreGlow: 0, bob: -1 })),
@@ -191,17 +202,32 @@ export function buildBossFrames() {
   }
 
   // claw/idle 2, claw/swing 5
-  add(`estivador/claw/idle/0`, frame(CW, CH, (c) => claw(c, { open: 1 })));
-  add(`estivador/claw/idle/1`, frame(CW, CH, (c) => claw(c, { open: 1.2 })));
+  add(
+    `estivador/claw/idle/0`,
+    frame(CW, CH, (c) => claw(c, { open: 1 })),
+  );
+  add(
+    `estivador/claw/idle/1`,
+    frame(CW, CH, (c) => claw(c, { open: 1.2 })),
+  );
   [2, 1.5, 0.4, 0, 0.8].forEach((open, i) =>
-    add(`estivador/claw/swing/${i}`, frame(CW, CH, (c) => claw(c, { open, flash: i === 3 }))),
+    add(
+      `estivador/claw/swing/${i}`,
+      frame(CW, CH, (c) => claw(c, { open, flash: i === 3 })),
+    ),
   );
 
   // core/idle 4 (fechado), core/exposed 4 (pulsando)
   for (let i = 0; i < 4; i++)
-    add(`estivador/core/idle/${i}`, frame(KW, KH, (c) => core(c, { exposed: false })));
+    add(
+      `estivador/core/idle/${i}`,
+      frame(KW, KH, (c) => core(c, { exposed: false })),
+    );
   [0, 1, 2, 1].forEach((pulse, i) =>
-    add(`estivador/core/exposed/${i}`, frame(KW, KH, (c) => core(c, { exposed: true, pulse }))),
+    add(
+      `estivador/core/exposed/${i}`,
+      frame(KW, KH, (c) => core(c, { exposed: true, pulse })),
+    ),
   );
 
   return out;

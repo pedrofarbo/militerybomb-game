@@ -23,11 +23,24 @@ import { encodePng } from './png.mjs';
 import { writeAtlas } from './atlas.mjs';
 import { PALETTE, PALETTE_SIZE } from './palette.mjs';
 import { ANIMS, STATIC_SPRITES } from './anims.mjs';
-import { buildCharacterFrames, PLAYER_FRAME, PLAYER_ARM_FRAME, PLAYER_SHOULDER, PLAYER_BODY_BOX } from './parts/characters.mjs';
+import {
+  buildCharacterFrames,
+  PLAYER_FRAME,
+  PLAYER_ARM_FRAME,
+  PLAYER_SHOULDER,
+  PLAYER_BODY_BOX,
+} from './parts/characters.mjs';
 import { buildEnemyFrames, ENEMY_FRAMES } from './parts/enemies.mjs';
 import { buildBossFrames, BOSS_FRAMES, BOSS_ANCHORS } from './parts/boss.mjs';
 import { buildFxFrames } from './parts/fx.mjs';
-import { buildEnvFrames, buildTileset, buildParallaxLayers, TILE, TILES, TILESET_COLS } from './parts/env.mjs';
+import {
+  buildEnvFrames,
+  buildTileset,
+  buildParallaxLayers,
+  TILE,
+  TILES,
+  TILESET_COLS,
+} from './parts/env.mjs';
 import { buildUiFrames } from './parts/ui.mjs';
 import { buildPreview } from './preview.mjs';
 import { buildInventory } from './inventory.mjs';
@@ -53,10 +66,7 @@ const atlasSources = {
 /* ── Validação: toda animação declarada precisa existir de fato ── */
 const errors = [];
 const frameIndex = new Map(
-  Object.entries(atlasSources).map(([name, frames]) => [
-    name,
-    new Set(frames.map((f) => f.name)),
-  ]),
+  Object.entries(atlasSources).map(([name, frames]) => [name, new Set(frames.map((f) => f.name))]),
 );
 for (const a of ANIMS) {
   const set = frameIndex.get(a.atlas);
@@ -65,7 +75,8 @@ for (const a of ANIMS) {
     continue;
   }
   for (let i = 0; i < a.frames; i++) {
-    if (!set.has(`${a.prefix}${i}`)) errors.push(`anim "${a.key}": frame ausente "${a.prefix}${i}"`);
+    if (!set.has(`${a.prefix}${i}`))
+      errors.push(`anim "${a.key}": frame ausente "${a.prefix}${i}"`);
   }
 }
 for (const s of STATIC_SPRITES) {
@@ -210,10 +221,7 @@ writeFileSync(
   `${ROOT}/docs/placeholder-preview.html`,
   buildPreview(report, ANIMS, atlasSources, layers, tilesetInfo),
 );
-writeFileSync(
-  `${ROOT}/docs/ASSET_INVENTORY.md`,
-  buildInventory(atlasSources, report, tilesetInfo),
-);
+writeFileSync(`${ROOT}/docs/ASSET_INVENTORY.md`, buildInventory(atlasSources, report, tilesetInfo));
 
 /* ── Relatório ── */
 const totalFrames = report.reduce((s, r) => s + r.count, 0);

@@ -122,8 +122,7 @@ function drawTile(c, x, y, id) {
       break;
     case 'hazard_stripe':
       for (let i = 0; i < T; i++)
-        for (let j = 0; j < T; j++)
-          c.rect(gx + i, gy + j, 1, 1, (i + j) % 8 < 4 ? 'sig3' : 'ink');
+        for (let j = 0; j < T; j++) c.rect(gx + i, gy + j, 1, 1, (i + j) % 8 < 4 ? 'sig3' : 'ink');
       break;
     case 'container_tl':
     case 'container_t':

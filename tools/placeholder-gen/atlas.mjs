@@ -19,10 +19,7 @@ export function packAtlas(frames, atlasName, { padding = 1 } = {}) {
     (a, b) => b.canvas.h - a.canvas.h || a.name.localeCompare(b.name),
   );
 
-  const totalArea = sorted.reduce(
-    (s, f) => s + (f.canvas.w + padding) * (f.canvas.h + padding),
-    0,
-  );
+  const totalArea = sorted.reduce((s, f) => s + (f.canvas.w + padding) * (f.canvas.h + padding), 0);
   let width = nextPow2(Math.ceil(Math.sqrt(totalArea) * 1.15));
   width = Math.max(width, sorted[0].canvas.w + padding * 2);
 

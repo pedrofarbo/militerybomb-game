@@ -40,10 +40,7 @@ export function encodePng(width, height, rgba) {
   const raw = Buffer.alloc((stride + 1) * height);
   for (let y = 0; y < height; y++) {
     raw[y * (stride + 1)] = 0; // filter: None
-    Buffer.from(rgba.buffer, rgba.byteOffset + y * stride, stride).copy(
-      raw,
-      y * (stride + 1) + 1,
-    );
+    Buffer.from(rgba.buffer, rgba.byteOffset + y * stride, stride).copy(raw, y * (stride + 1) + 1);
   }
 
   const ihdr = Buffer.alloc(13);

@@ -1,0 +1,262 @@
+/* Casca de UI. Cores vindas da paleta de 48 (docs/ART_SPEC.md §4). */
+
+:root {
+  --ink: #0d0b12;
+  --con1: #23272e;
+  --con4: #5e6a79;
+  --met5: #c3cedb;
+  --sig3: #e8bb28;
+  --rust4: #d97434;
+  --teal5: #57c2c4;
+  --haz: #d43b2f;
+  --hud-pad: 10px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--ink);
+  color: var(--met5);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /* Toque no jogo nunca deve rolar a página nem abrir menu de seleção. */
+  overscroll-behavior: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#app {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+
+/* O canvas renderiza na resolução lógica (≤ 800×360) e é ampliado por CSS.
+   `pixelated` é o que mantém a pixel art nítida em vez de borrada. */
+#app canvas {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  display: block;
+  touch-action: none;
+}
+
+/* A UI se ancora ao CANVAS, não à janela: assim o letterbox residual nunca
+   separa o HUD do jogo. O JS espelha a caixa do canvas nestas variáveis. */
+.ui-root {
+  position: fixed;
+  left: var(--canvas-left, 0px);
+  top: var(--canvas-top, 0px);
+  width: var(--canvas-width, 100vw);
+  height: var(--canvas-height, 100vh);
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* ─────────────────────────────── HUD ─────────────────────────────── */
+
+.hud {
+  position: absolute;
+  inset: 0;
+  padding: calc(var(--hud-pad) + env(safe-area-inset-top))
+    calc(var(--hud-pad) + env(safe-area-inset-right))
+    calc(var(--hud-pad) + env(safe-area-inset-bottom))
+    calc(var(--hud-pad) + env(safe-area-inset-left));
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+}
+
+.hud-weapon {
+  background: rgba(13, 11, 18, 0.72);
+  border: 1px solid var(--con4);
+  border-radius: 3px;
+  padding: 4px 8px;
+  color: var(--sig3);
+}
+
+.hud-hint {
+  color: var(--met5);
+  text-shadow: 0 1px 0 var(--ink);
+  font-size: 12px;
+  min-height: 1em;
+}
+
+/* ─────────────────────── Aviso de orientação ─────────────────────── */
+
+.orientation-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: var(--ink);
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 16px;
+  text-align: center;
+  pointer-events: auto;
+}
+
+.orientation-gate[hidden] {
+  display: none;
+}
+
+.orientation-gate__icon {
+  font-size: 56px;
+  color: var(--sig3);
+  animation: gate-turn 2s ease-in-out infinite;
+}
+
+.orientation-gate__text {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.7;
+  color: var(--met5);
+}
+
+.orientation-gate__text span {
+  color: var(--con4);
+  font-size: 12px;
+}
+
+@keyframes gate-turn {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(90deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .orientation-gate__icon {
+    animation: none;
+  }
+}
+
+/* ────────────────────────── Controles touch ─────────────────────── */
+
+.touch-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.touch-layer[hidden] {
+  display: none;
+}
+
+.touch-stick-zone {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 45%;
+  height: 100%;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.touch-stick-base {
+  position: fixed;
+  width: 112px;
+  height: 112px;
+  margin: -56px 0 0 -56px;
+  border-radius: 50%;
+  border: 2px solid rgba(195, 206, 219, 0.35);
+  background: rgba(35, 39, 46, 0.25);
+  opacity: 0;
+  transition: opacity 90ms linear;
+  pointer-events: none;
+}
+
+.touch-stick-base.is-active {
+  opacity: 1;
+}
+
+.touch-stick-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 56px;
+  height: 56px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: rgba(195, 206, 219, 0.6);
+  border: 2px solid rgba(242, 245, 248, 0.5);
+}
+
+.touch-button-zone {
+  position: absolute;
+  right: calc(14px + env(safe-area-inset-right));
+  bottom: calc(14px + env(safe-area-inset-bottom));
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  gap: 12px;
+  pointer-events: auto;
+}
+
+.touch-btn {
+  /* 64 px: acima do mínimo recomendado de 44 px para alvo de toque, porque
+     aqui o jogador não está olhando para o botão. */
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 3px solid currentColor;
+  background: rgba(13, 11, 18, 0.35);
+  color: var(--con4);
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  touch-action: none;
+  transition:
+    transform 60ms ease-out,
+    background-color 60ms linear;
+}
+
+.touch-btn--jump {
+  color: var(--teal5);
+}
+.touch-btn--shoot {
+  color: var(--rust4);
+}
+.touch-btn--grenade {
+  color: var(--sig3);
+}
+.touch-btn--special {
+  color: var(--haz);
+}
+
+.touch-btn.is-pressed {
+  background: color-mix(in srgb, currentColor 45%, transparent);
+  transform: scale(0.92);
+}
+
+/* ──────────────────────────── Debug ─────────────────────────────── */
+
+.debug-overlay {
+  position: fixed;
+  left: calc(8px + env(safe-area-inset-left));
+  top: calc(8px + env(safe-area-inset-top));
+  z-index: 40;
+  padding: 8px 10px;
+  background: rgba(13, 11, 18, 0.82);
+  border: 1px solid var(--con1);
+  border-radius: 4px;
+  color: var(--teal5);
+  font-size: 11px;
+  line-height: 1.45;
+  white-space: pre;
+  pointer-events: none;
+  max-width: 60vw;
+}

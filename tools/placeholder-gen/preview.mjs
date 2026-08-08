@@ -62,7 +62,9 @@ export function buildPreview(report, anims, atlasSources, layers, tilesetInfo) {
       let x = 1;
       let y = 1;
       let shelf = 0;
-      for (const f of [...frames].sort((a, b) => b.canvas.h - a.canvas.h || a.name.localeCompare(b.name))) {
+      for (const f of [...frames].sort(
+        (a, b) => b.canvas.h - a.canvas.h || a.name.localeCompare(b.name),
+      )) {
         if (x + f.canvas.w + 1 > r.width) {
           x = 1;
           y += shelf + 1;

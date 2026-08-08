@@ -41,8 +41,13 @@ function explosion(size, frames, seed) {
         const r = Math.round((size / 2 - 2) * (0.35 + 0.65 * grow) * (1 - t * 0.25));
         // Fumaça que sobrevive à bola de fogo
         if (t > 0.3)
-          c.disc(cx, cy - Math.round(t * size * 0.12), Math.round(r * 1.1), 'smoke2',
-            Math.round(120 * (t - 0.3)));
+          c.disc(
+            cx,
+            cy - Math.round(t * size * 0.12),
+            Math.round(r * 1.1),
+            'smoke2',
+            Math.round(120 * (t - 0.3)),
+          );
         blast(c, cx, cy, r, t);
         // Estilhaços projetados
         for (const ch of chunks) {
@@ -240,7 +245,13 @@ export function buildFxFrames() {
         c.disc(7, 7, r + 1, 'ink');
         c.disc(7, 7, r, 'teal2');
         const a = (i / 4) * Math.PI * 2;
-        c.rect(Math.round(7 + Math.cos(a) * 3) - 1, Math.round(7 + Math.sin(a) * 3) - 1, 3, 3, 'sig3');
+        c.rect(
+          Math.round(7 + Math.cos(a) * 3) - 1,
+          Math.round(7 + Math.sin(a) * 3) - 1,
+          3,
+          3,
+          'sig3',
+        );
         c.rect(6, 1, 2, 3, 'met3');
       }),
     );
