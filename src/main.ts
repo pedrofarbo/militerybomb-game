@@ -91,8 +91,17 @@ async function bootstrap(): Promise<void> {
 
   /* ── Escala e ancoragem da UI ── */
 
+  /* Mede o CONTAINER, não a janela. Na página do jogo `#app` ocupa a viewport
+     inteira e dá no mesmo; num embed (landing page, artifact) o jogo passa a
+     caber no espaço que recebeu, em vez de vazar por cima do resto. */
+  const viewport = (): { width: number; height: number } => ({
+    width: app.clientWidth || window.innerWidth,
+    height: app.clientHeight || window.innerHeight,
+  });
+
   const applyScale = (): void => {
-    const size = computeLogicalSize(window.innerWidth, window.innerHeight);
+    const { width: vw, height: vh } = viewport();
+    const size = computeLogicalSize(vw, vh);
     game.scale.setGameSize(size.width, size.height);
     game.scale.setZoom(size.zoom);
 
@@ -105,7 +114,7 @@ async function bootstrap(): Promise<void> {
     root.style.setProperty('--canvas-width', `${rect.width}px`);
     root.style.setProperty('--canvas-height', `${rect.height}px`);
 
-    const blocked = device.hasTouch && isPortrait(window.innerWidth, window.innerHeight);
+    const blocked = device.hasTouch && isPortrait(vw, vh);
     ui.setPortraitBlocked(blocked);
     const level = game.scene.getScene('level');
     if (!level) return;
@@ -115,6 +124,7 @@ async function bootstrap(): Promise<void> {
 
   window.addEventListener('resize', applyScale);
   window.addEventListener('orientationchange', () => window.setTimeout(applyScale, 120));
+  new ResizeObserver(applyScale).observe(app);
   game.events.once(Phaser.Core.Events.READY, applyScale);
 
   /* ── Pausa ao perder o foco (também evita áudio tocando em background) ── */

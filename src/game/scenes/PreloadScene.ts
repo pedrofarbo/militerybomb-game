@@ -16,8 +16,14 @@ export class PreloadScene extends Phaser.Scene {
   }
 
   preload(): void {
+    /* Numa build embutida (um arquivo único, sem servidor) os JSON dos atlas
+       vêm como objeto neste global. Passá-los direto ao loader evita qualquer
+       requisição — e uma página autocontida não pode fazer nenhuma. */
+    const inlineAtlases = (globalThis as { __REDLINE_ATLAS_DATA__?: Record<string, object> })
+      .__REDLINE_ATLAS_DATA__;
+
     for (const [key, def] of Object.entries(ATLASES)) {
-      this.load.atlas(key, def.texture, def.data);
+      this.load.atlas(key, def.texture, inlineAtlases?.[key] ?? def.data);
     }
     for (const [key, path] of Object.entries(IMAGES)) {
       this.load.image(key, path);

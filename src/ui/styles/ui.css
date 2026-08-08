@@ -309,10 +309,12 @@ body {
 
 /* ──────────────────────────── Debug ─────────────────────────────── */
 
+/* Ancorado ao CANVAS, igual ao HUD: num embed, `fixed` na viewport jogaria o
+   painel por cima da página que hospeda o jogo. */
 .debug-overlay {
   position: fixed;
-  left: calc(8px + env(safe-area-inset-left));
-  top: calc(8px + env(safe-area-inset-top));
+  left: calc(var(--canvas-left, 0px) + 8px + env(safe-area-inset-left));
+  top: calc(var(--canvas-top, 0px) + 8px + env(safe-area-inset-top));
   z-index: 40;
   padding: 8px 10px;
   background: rgba(13, 11, 18, 0.82);

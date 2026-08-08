@@ -42,6 +42,7 @@ Requer Node.js ≥ 22.12.
 | `npm run lint`             | ESLint, incluindo a fronteira `core` ↛ Phaser            |
 | `npm run ci`               | tudo acima, na ordem do CI                               |
 | `npm run art:placeholders` | regenera todos os assets placeholder                     |
+| `npm run build:standalone` | empacota o jogo num HTML único, sem requisições          |
 
 ## Arquitetura em uma tela
 
@@ -92,6 +93,21 @@ trocar arquivos, sem tocar em código de gameplay.**
 
 Rodar o gerador duas vezes produz bytes idênticos, e o CI falha se o commit
 sair de sincronia com o gerador.
+
+## Build autocontida
+
+`npm run build:standalone` gera `dist-standalone/redline.html`: o jogo inteiro
+num arquivo de ~1,5 MB, com JS e CSS inline e todas as imagens como data-URI.
+**Zero requisições de rede** — abre por `file://`, serve para anexar, hospedar
+em qualquer lugar ou publicar sob CSP restrita.
+
+Os JSON dos atlas vão como objeto num global em vez de data-URI: como data-URI
+o loader do Phaser faria XHR neles, e uma CSP que proíba `connect-src data:`
+derrubaria o jogo só em produção. O build ainda falha se sobrar qualquer
+caminho de asset no bundle.
+
+A mesma build sai em duas formas: um documento completo e um fragmento sem
+`<html>`/`<head>`/`<body>`, para hosts que injetam o próprio esqueleto.
 
 ## Alvos de performance
 

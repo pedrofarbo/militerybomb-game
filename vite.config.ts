@@ -8,9 +8,16 @@ export default defineConfig({
     assetsInlineLimit: 0, // sprites nunca viram data-URI: quebra o cache de textura
     rollupOptions: {
       output: {
-        // Phaser sozinho em um chunk: muda raramente, então o cache do usuário
-        // sobrevive a deploys do código do jogo.
-        manualChunks: (id) => (id.includes('node_modules/phaser') ? 'phaser' : undefined),
+        /* Phaser sozinho em um chunk: muda raramente, então o cache do usuário
+           sobrevive a deploys do código do jogo.
+           A build autocontida (`npm run build:standalone`) precisa do oposto —
+           um arquivo só, porque não há servidor para resolver os imports. */
+        ...(process.env.REDLINE_STANDALONE
+          ? { inlineDynamicImports: true }
+          : {
+              manualChunks: (id: string) =>
+                id.includes('node_modules/phaser') ? 'phaser' : undefined,
+            }),
       },
     },
   },
