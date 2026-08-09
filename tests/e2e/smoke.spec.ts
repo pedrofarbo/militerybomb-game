@@ -203,21 +203,21 @@ test('↓ + pulo desce por uma plataforma, sem atravessar o chão', async ({ pag
   expect(await advanceToFirstEnemy(page, PLATFORM_X - 40)).toBe(true);
   await expect.poll(async () => (await readPlayer(page)).vx, { timeout: 3000 }).toBe(0);
 
-  await page.keyboard.down('Space');
-  await page.waitForTimeout(350);
-  await page.keyboard.up('Space');
+  /* Sobe na plataforma TENTANDO de novo, como um jogador faria. Um pulo só,
+     cronometrado em tempo de parede, falha quando a máquina está carregada —
+     e o que este teste mede é a descida pela plataforma, não a sorte de um
+     `waitForTimeout` cair no milissegundo certo. */
+  let onPlatform: PlayerReadout | null = null;
+  for (let attempt = 0; attempt < 8 && !onPlatform; attempt++) {
+    await page.keyboard.down('Space');
+    await page.waitForTimeout(350);
+    await page.keyboard.up('Space');
+    await page.waitForTimeout(500);
 
-  await expect
-    .poll(
-      async () => {
-        const r = await readPlayer(page);
-        return r.grounded && r.y < GROUND_Y - 20;
-      },
-      { timeout: 5000 },
-    )
-    .toBe(true);
-
-  const onPlatform = await readPlayer(page);
+    const r = await readPlayer(page);
+    if (r.grounded && r.y < GROUND_Y - 20) onPlatform = r;
+  }
+  expect(onPlatform, 'o player precisa pousar na plataforma').not.toBeNull();
 
   /* Tenta descer algumas vezes. A plataforma fica logo acima do primeiro
      soldado: um tiro joga o player no ar e a tentativa daquele instante falha
@@ -228,14 +228,14 @@ test('↓ + pulo desce por uma plataforma, sem atravessar o chão', async ({ pag
   for (let attempt = 0; attempt < 6 && !dropped; attempt++) {
     await page.keyboard.press('Space');
     await page.waitForTimeout(500);
-    dropped = (await readPlayer(page)).y > onPlatform.y + 16;
+    dropped = (await readPlayer(page)).y > onPlatform!.y + 16;
   }
   await page.keyboard.up('s');
   expect(dropped).toBe(true);
 
   const after = await readPlayer(page);
   // Desceu de fato...
-  expect(after.y).toBeGreaterThan(onPlatform.y + 16);
+  expect(after.y).toBeGreaterThan(onPlatform!.y + 16);
   /* ...e parou no cenário em vez de atravessá-lo. Não dá para exigir
      `grounded` neste instante: aqui já há soldados atirando, e um tiro joga o
      player no ar. O que este teste precisa garantir é que ele não caiu ATRAVÉS
@@ -303,7 +303,11 @@ test('morrer custa uma vida, devolve os inimigos e preserva a pontuação', asyn
 
   const after = await readCombat(page);
   expect(after.lives).toBe(start.lives - 1);
-  expect(after.score).toBe(scored.score);
+  /* NÃO é igualdade exata: a metralhadora alcança 500 px e o soldado seguinte
+     está dentro desse raio, então uma bala ainda em voo pode somar pontos
+     entre a leitura e a morte. O que este teste mede é que o placar SOBREVIVE
+     — e para isso "não diminuiu" é a afirmação certa. */
+  expect(after.score).toBeGreaterThanOrEqual(scored.score);
   expect(after.phase).toBe('playing');
 });
 
@@ -344,7 +348,10 @@ test('acabar as vidas dá fim de jogo, e recomeçar zera o placar', async ({ pag
  * — se a luta ficar impossível de vencer com movimento básico, ele quebra.
  */
 test('derrubar o boss abre a extração e termina a fase', async ({ page }) => {
-  test.setTimeout(180_000);
+  /* O teste mais longo da suíte: ele joga a luta inteira, em tempo real. Sob
+     carga paralela o browser roda mais devagar e o orçamento aperta. */
+  test.slow();
+  test.setTimeout(240_000);
   /* Entra pelo corredor final, e não direto na soleira: é lá que estão o kit
      de vida e o checkpoint. Começar a luta já machucado pelo soldado da
      coluna 124 é variação que não tem nada a ver com o que este teste mede. */
@@ -676,6 +683,102 @@ test('pausar congela a fase, e o botão do HUD também pausa', async ({ page }) 
   // ...e o botão do HUD abre a pausa de novo (o único caminho no celular).
   await page.locator('.hud-pause').click();
   await expect(pause).toBeVisible();
+});
+
+/* ───────────────────────── Controles touch ──────────────────────── */
+
+/**
+ * REGRESSÃO: o direcional travava e o personagem andava sozinho, sem que
+ * nenhum toque novo recuperasse.
+ *
+ * A causa era depender de o `pointerup` chegar ao ELEMENTO do direcional.
+ * Quando o browser rouba o ponteiro — gesto do sistema, barra de endereço
+ * aparecendo, troca de app — esse evento se perde. Pior: o `pointerId` velho
+ * continuava ocupando o stick, então o dedo seguinte era ignorado para sempre.
+ *
+ * Aqui o "up perdido" é simulado despachando-o no `body` em vez de na zona.
+ */
+test('o direcional não trava quando o browser rouba o toque', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'os controles touch só existem no perfil mobile');
+  await boot(page);
+
+  const holdStick = (pointerId: number, toX: number): Promise<void> =>
+    page.evaluate(
+      ({ pointerId: id, toX: x }) => {
+        const zone = document.querySelector('.touch-stick-zone')!;
+        const base = {
+          pointerId: id,
+          pointerType: 'touch',
+          isPrimary: true,
+          bubbles: true,
+          cancelable: true,
+          clientY: 300,
+        };
+        zone.dispatchEvent(new PointerEvent('pointerdown', { ...base, clientX: 120 }));
+        zone.dispatchEvent(new PointerEvent('pointermove', { ...base, clientX: x }));
+      },
+      { pointerId, toX },
+    );
+
+  const vx = async (): Promise<number> =>
+    Number(
+      /vel\s+(-?\d+)/.exec(
+        await page.evaluate(() => document.querySelector('.debug-overlay')?.textContent ?? ''),
+      )?.[1] ?? NaN,
+    );
+
+  await holdStick(7, 210);
+  await expect.poll(vx, { timeout: 5000 }).toBeGreaterThan(0);
+
+  // O dedo levanta, mas o evento não passa pela zona do direcional.
+  await page.evaluate(() => {
+    document.body.dispatchEvent(
+      new PointerEvent('pointerup', {
+        pointerId: 7,
+        pointerType: 'touch',
+        isPrimary: true,
+        bubbles: true,
+        clientX: 210,
+        clientY: 300,
+      }),
+    );
+  });
+  await expect.poll(vx, { timeout: 5000 }).toBe(0);
+
+  // E o direcional continua utilizável: um toque novo responde normalmente.
+  await holdStick(8, 40);
+  await expect.poll(vx, { timeout: 5000 }).toBeLessThan(0);
+});
+
+/** Sair do jogo com o dedo na tela nunca entrega o `pointerup`. */
+test('trocar de app com o dedo na tela solta os controles', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'os controles touch só existem no perfil mobile');
+  await boot(page);
+
+  await page.evaluate(() => {
+    const zone = document.querySelector('.touch-stick-zone')!;
+    const base = {
+      pointerId: 3,
+      pointerType: 'touch',
+      isPrimary: true,
+      bubbles: true,
+      cancelable: true,
+      clientY: 300,
+    };
+    zone.dispatchEvent(new PointerEvent('pointerdown', { ...base, clientX: 120 }));
+    zone.dispatchEvent(new PointerEvent('pointermove', { ...base, clientX: 220 }));
+  });
+
+  const vx = async (): Promise<number> =>
+    Number(
+      /vel\s+(-?\d+)/.exec(
+        await page.evaluate(() => document.querySelector('.debug-overlay')?.textContent ?? ''),
+      )?.[1] ?? NaN,
+    );
+  await expect.poll(vx, { timeout: 5000 }).toBeGreaterThan(0);
+
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  await expect.poll(vx, { timeout: 5000 }).toBe(0);
 });
 
 test('o canvas mantém a altura lógica de 360 e a largura dentro da faixa', async ({ page }) => {

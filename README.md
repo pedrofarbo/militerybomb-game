@@ -151,7 +151,7 @@ Build atual: **~390 KB gzip** de código (Phaser 358 KB + jogo 28 KB + CSS 2 KB)
 mais 1,1 MB de áudio placeholder em WAV — que o som final em `.ogg` reduz a uma
 fração disso.
 
-Testes: **167 unitários** (~1 s, sem browser) e **50 de browser** (desktop e
+Testes: **167 unitários** (~1 s, sem browser) e **54 de browser** (desktop e
 mobile landscape, contra a build de produção).
 
 ## Originalidade
