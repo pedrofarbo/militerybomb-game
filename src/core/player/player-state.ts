@@ -11,6 +11,7 @@ import type { AimDirection } from './aim';
 export const Locomotion = {
   Idle: 'IDLE',
   Run: 'RUN',
+  Crouch: 'CROUCH',
   JumpRise: 'JUMP_RISE',
   Fall: 'FALL',
   Land: 'LAND',
@@ -45,6 +46,13 @@ export interface PlayerState {
   jumpHeld: boolean;
   jumpCutApplied: boolean;
 
+  /**
+   * Agachado. A camada de jogo LÊ isto para encolher a caixa de colisão e
+   * baixar o ombro — nunca escreve.
+   */
+  crouching: boolean;
+  crouchMs: number;
+
   /* Apresentação e combate. */
   locomotion: Locomotion;
   aim: AimDirection;
@@ -70,6 +78,8 @@ export function createPlayerState(health: number): PlayerState {
     invulnMs: 0,
     jumpHeld: false,
     jumpCutApplied: false,
+    crouching: false,
+    crouchMs: 0,
     locomotion: Locomotion.Idle,
     aim: 'fwd',
     firing: false,

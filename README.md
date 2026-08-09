@@ -27,6 +27,7 @@ Requer Node.js ≥ 22.12.
 | Mirar             | `W` `S` / setas | stick         | direcional                 |
 | Pular             | `Espaço` / `K`  | A             | botão **PULO**             |
 | Atirar            | `J` / `Ctrl`    | X / RT        | botão **TIRO** (segurável) |
+| Agachar           | `S` / `↓`       | ↓             | direcional ↓               |
 | Descer plataforma | `S`/`↓` + pulo  | ↓ + A         | direcional ↓ + **PULO**    |
 | Trocar arma       | `Q` / `Tab`     | LB            | —                          |
 | Granada           | `L`             | B             | botão **GRAN**             |
@@ -49,6 +50,15 @@ fase com os inimigos de volta**, no último checkpoint tocado — com a arma e a
 granadas que você tinha ao tocá-lo. **A pontuação sobrevive à morte e só zera
 no fim de jogo**: é isso que dá sentido a ter três vidas — três tentativas de
 fazer UMA pontuação, não três pontuações separadas.
+
+### Agachar
+
+Segurar ↓ no chão abaixa. A caixa de colisão cai de 40 para 24 px mantendo a
+linha dos pés — um tiro que passaria no peito passa por cima. **Agachado não se
+anda**, e é isso que faz disso uma escolha: um agachamento que também deixasse
+correr não seria uma opção tática, seria um upgrade permanente, e o jogador
+passaria a fase inteira abaixado. Dá para atirar agachado, e pular sai do
+agachamento — mas só se houver teto para levantar.
 
 ### A luta contra o Estivador
 
@@ -90,7 +100,7 @@ src/
 
 A fronteira `core` ↛ `game` é **aplicada por lint**, não por convenção: um
 import de Phaser dentro de `src/core` quebra o CI. É isso que mantém a
-simulação testável em Node — os 167 testes unitários rodam em ~1 s, sem
+simulação testável em Node — os 177 testes unitários rodam em ~1 s, sem
 canvas, sem WebGL. A IA dos inimigos inteira é testada assim: "soldado vê o
 jogador → telegrafa antes de atirar" é um teste unitário, não um playtest.
 
@@ -156,7 +166,7 @@ Build atual: **~390 KB gzip** de código (Phaser 358 KB + jogo 28 KB + CSS 2 KB)
 mais 1,1 MB de áudio placeholder em WAV — que o som final em `.ogg` reduz a uma
 fração disso.
 
-Testes: **167 unitários** (~1 s, sem browser) e **56 de browser** (desktop e
+Testes: **177 unitários** (~1 s, sem browser) e **62 de browser** (desktop e
 mobile landscape, contra a build de produção).
 
 ## Originalidade

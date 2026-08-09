@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PLAYER } from '../../src/core/config/tuning';
 import { createPlayerState, Locomotion } from '../../src/core/player/player-state';
+import { ART_METRICS } from '../../src/assets/manifest';
 import {
   createMovementResult,
   stepMovement,
@@ -10,7 +11,14 @@ import {
 const STEP = 1000 / 60;
 
 function makeInput(partial: Partial<MovementInput> = {}): MovementInput {
-  return { axisX: 0, jumpHeld: false, jumpPressed: false, ...partial };
+  return {
+    axisX: 0,
+    jumpHeld: false,
+    jumpPressed: false,
+    crouchHeld: false,
+    canStandUp: true,
+    ...partial,
+  };
 }
 
 /** Simula N passos, mantendo o player no chão a menos que ele pule. */
@@ -78,7 +86,12 @@ describe('movimento — pulo', () => {
     const s = createPlayerState(PLAYER.maxHealth);
     s.grounded = true;
     const out = createMovementResult();
-    stepMovement(s, makeInput({ jumpHeld: true, jumpPressed: true }), STEP, out);
+    stepMovement(
+      s,
+      makeInput({ jumpHeld: true, jumpPressed: true, crouchHeld: false, canStandUp: true }),
+      STEP,
+      out,
+    );
     expect(out.jumped).toBe(true);
     expect(s.vy).toBeLessThan(0);
   });
@@ -92,7 +105,12 @@ describe('movimento — pulo', () => {
     const out = createMovementResult();
     // 50 ms no ar — dentro da janela de 100 ms
     for (let i = 0; i < 3; i++) stepMovement(s, makeInput(), STEP, out);
-    stepMovement(s, makeInput({ jumpHeld: true, jumpPressed: true }), STEP, out);
+    stepMovement(
+      s,
+      makeInput({ jumpHeld: true, jumpPressed: true, crouchHeld: false, canStandUp: true }),
+      STEP,
+      out,
+    );
 
     expect(out.jumped).toBe(true);
   });
@@ -105,7 +123,12 @@ describe('movimento — pulo', () => {
     s.grounded = false;
     const out = createMovementResult();
     for (let i = 0; i < 12; i++) stepMovement(s, makeInput(), STEP, out); // 200 ms
-    stepMovement(s, makeInput({ jumpHeld: true, jumpPressed: true }), STEP, out);
+    stepMovement(
+      s,
+      makeInput({ jumpHeld: true, jumpPressed: true, crouchHeld: false, canStandUp: true }),
+      STEP,
+      out,
+    );
 
     expect(out.jumped).toBe(false);
   });
@@ -116,7 +139,12 @@ describe('movimento — pulo', () => {
     const out = createMovementResult();
 
     // Aperta no ar, 50 ms antes de aterrissar
-    stepMovement(s, makeInput({ jumpHeld: true, jumpPressed: true }), STEP, out);
+    stepMovement(
+      s,
+      makeInput({ jumpHeld: true, jumpPressed: true, crouchHeld: false, canStandUp: true }),
+      STEP,
+      out,
+    );
     expect(out.jumped).toBe(false);
 
     for (let i = 0; i < 2; i++) stepMovement(s, makeInput({ jumpHeld: true }), STEP, out);
@@ -133,8 +161,18 @@ describe('movimento — pulo', () => {
     tall.grounded = true;
     const out = createMovementResult();
 
-    stepMovement(short, makeInput({ jumpHeld: true, jumpPressed: true }), STEP, out);
-    stepMovement(tall, makeInput({ jumpHeld: true, jumpPressed: true }), STEP, out);
+    stepMovement(
+      short,
+      makeInput({ jumpHeld: true, jumpPressed: true, crouchHeld: false, canStandUp: true }),
+      STEP,
+      out,
+    );
+    stepMovement(
+      tall,
+      makeInput({ jumpHeld: true, jumpPressed: true, crouchHeld: false, canStandUp: true }),
+      STEP,
+      out,
+    );
 
     short.grounded = false;
     tall.grounded = false;
@@ -172,7 +210,12 @@ describe('movimento — pulo', () => {
     const s = createPlayerState(PLAYER.maxHealth);
     s.grounded = true;
     const out = createMovementResult();
-    stepMovement(s, makeInput({ jumpHeld: true, jumpPressed: true }), STEP, out);
+    stepMovement(
+      s,
+      makeInput({ jumpHeld: true, jumpPressed: true, crouchHeld: false, canStandUp: true }),
+      STEP,
+      out,
+    );
     s.grounded = false;
 
     let extra = 0;
@@ -243,7 +286,13 @@ describe('movimento — estados', () => {
 
     stepMovement(
       s,
-      makeInput({ axisX: 1, jumpHeld: true, jumpPressed: true }),
+      makeInput({
+        axisX: 1,
+        jumpHeld: true,
+        jumpPressed: true,
+        crouchHeld: false,
+        canStandUp: true,
+      }),
       STEP,
       createMovementResult(),
     );
@@ -251,5 +300,141 @@ describe('movimento — estados', () => {
     expect(s.locomotion).toBe('DEAD');
     expect(s.vy).toBeGreaterThan(before);
     expect(s.vx).toBe(0);
+  });
+});
+
+describe('agachar', () => {
+  it('↓ no chão agacha; soltar levanta', () => {
+    const state = createPlayerState(6);
+    state.grounded = true;
+
+    run(state, makeInput({ crouchHeld: true }), 4);
+    expect(state.crouching).toBe(true);
+    expect(state.locomotion).toBe('CROUCH');
+
+    // Passa do tempo mínimo antes de soltar, senão ele segura o agachamento.
+    run(state, makeInput({ crouchHeld: true }), 8);
+    run(state, makeInput({ crouchHeld: false }), 4);
+    expect(state.crouching).toBe(false);
+  });
+
+  /**
+   * A REGRA que dá sentido a agachar: ele CUSTA mobilidade. Um agachamento que
+   * também deixa correr não é escolha, é upgrade — e o jogador passaria a fase
+   * inteira abaixado.
+   */
+  it('agachado não anda, mesmo com o direcional no talo', () => {
+    const state = createPlayerState(6);
+    state.grounded = true;
+
+    run(state, makeInput({ axisX: 1, crouchHeld: true }), 30);
+
+    expect(state.crouching).toBe(true);
+    expect(state.vx).toBe(0);
+  });
+
+  it('não agacha no ar', () => {
+    const state = createPlayerState(6);
+    state.grounded = false;
+
+    run(state, makeInput({ crouchHeld: true }), 10, false);
+
+    expect(state.crouching).toBe(false);
+  });
+
+  /**
+   * Sem esta regra, levantar debaixo de uma viga cresce a caixa para dentro do
+   * tile e o Arcade cospe o player para fora numa direção qualquer — o
+   * clássico "atravessei o cenário".
+   */
+  it('não levanta sem espaço acima, mesmo soltando o botão', () => {
+    const state = createPlayerState(6);
+    state.grounded = true;
+
+    run(state, makeInput({ crouchHeld: true }), 12);
+    expect(state.crouching).toBe(true);
+
+    run(state, makeInput({ crouchHeld: false, canStandUp: false }), 20);
+    expect(state.crouching).toBe(true);
+
+    // Saiu de baixo da viga: aí sim levanta.
+    run(state, makeInput({ crouchHeld: false, canStandUp: true }), 4);
+    expect(state.crouching).toBe(false);
+  });
+
+  it('pular sai do agachamento', () => {
+    const state = createPlayerState(6);
+    state.grounded = true;
+    run(state, makeInput({ crouchHeld: true }), 12);
+    expect(state.crouching).toBe(true);
+
+    const out = createMovementResult();
+    stepMovement(state, makeInput({ crouchHeld: true, jumpPressed: true }), STEP, out);
+
+    expect(out.jumped).toBe(true);
+    expect(state.crouching).toBe(false);
+  });
+
+  it('sem teto, pular agachado é recusado — nada de subir para dentro do tile', () => {
+    const state = createPlayerState(6);
+    state.grounded = true;
+    run(state, makeInput({ crouchHeld: true }), 12);
+
+    const out = createMovementResult();
+    stepMovement(
+      state,
+      makeInput({ crouchHeld: true, jumpPressed: true, canStandUp: false }),
+      STEP,
+      out,
+    );
+
+    expect(out.jumped).toBe(false);
+    expect(state.crouching).toBe(true);
+  });
+
+  /**
+   * Um toque de raspão no ↓ não pode fazer a caixa encolher e crescer no mesmo
+   * instante: além de piscar na tela, o Arcade dá um empurrão ao recolocar o
+   * corpo maior.
+   */
+  it('respeita um tempo mínimo agachado', () => {
+    const state = createPlayerState(6);
+    state.grounded = true;
+
+    stepMovement(state, makeInput({ crouchHeld: true }), STEP, createMovementResult());
+    expect(state.crouching).toBe(true);
+
+    stepMovement(state, makeInput({ crouchHeld: false }), STEP, createMovementResult());
+    expect(state.crouching).toBe(true);
+  });
+
+  it('tomar dano levanta — a animação de dor é em pé', () => {
+    const state = createPlayerState(6);
+    state.grounded = true;
+    run(state, makeInput({ crouchHeld: true }), 12);
+
+    state.hurtMs = PLAYER.hurtMs;
+    run(state, makeInput({ crouchHeld: true }), 2);
+
+    expect(state.crouching).toBe(false);
+  });
+});
+
+describe('agachar — a caixa menor é o ponto', () => {
+  it('a caixa agachada é bem mais baixa e mantém a linha dos pés', () => {
+    expect(PLAYER.crouch.bodyHeight).toBeLessThan(PLAYER.bodyHeight * 0.7);
+    // Topo desce, base não: offset + altura tem de bater com o de pé.
+    expect(PLAYER.crouch.bodyOffsetY + PLAYER.crouch.bodyHeight).toBe(
+      PLAYER.bodyOffsetY + PLAYER.bodyHeight,
+    );
+  });
+
+  /** Gameplay e arte precisam concordar, senão o sprite não cobre a hitbox. */
+  it('bate com as métricas da arte', () => {
+    expect(PLAYER.crouch.bodyHeight).toBe(ART_METRICS.player.bodyCrouch.h);
+    expect(PLAYER.crouch.bodyOffsetY).toBe(ART_METRICS.player.bodyCrouch.y);
+    expect(PLAYER.crouch.shoulderY).toBe(
+      ART_METRICS.player.shoulderCrouch.y - ART_METRICS.player.feetY,
+    );
   });
 });

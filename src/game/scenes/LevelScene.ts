@@ -347,6 +347,7 @@ export class LevelScene extends Phaser.Scene {
         onHealthChanged: (hp, max) => this.deps.bus.emit('player:damaged', { hp, max }),
         onDied: () => this.onPlayerDied(),
         isOnOneWayPlatform: (x, y) => this.isOnOneWayPlatform(x, y),
+        hasHeadroom: (x, feetY) => this.hasHeadroom(x, feetY),
       },
       this.random,
     );
@@ -1221,6 +1222,24 @@ export class LevelScene extends Phaser.Scene {
     return false;
   }
 
+  /**
+   * Cabe em pé aqui?
+   *
+   * Amostra a LARGURA DO CORPO na altura da cabeça em pé, pelo mesmo motivo
+   * que a checagem de plataforma amostra: um único ponto no centro diz "cabe"
+   * com o ombro dentro da viga. Sem isto, levantar debaixo de um teto baixo
+   * enfia o corpo no tile e o Arcade cospe o player para fora em uma direção
+   * qualquer — na prática, atravessando o cenário.
+   */
+  private hasHeadroom(x: number, feetY: number): boolean {
+    const half = PLAYER.bodyWidth / 2 - 2;
+    const headY = feetY - PLAYER.bodyHeight + 2;
+    for (const offset of [0, -half, half]) {
+      if (this.isSolidAtWorld(x + offset, headY)) return false;
+    }
+    return true;
+  }
+
   /* ────────────────────────────── Debug ─────────────────────────── */
 
   private registerDebugPanels(): void {
@@ -1234,7 +1253,7 @@ export class LevelScene extends Phaser.Scene {
       return [
         `pos    ${this.player.x.toFixed(0)}, ${this.player.y.toFixed(0)}`,
         `vel    ${s.vx.toFixed(0)}, ${s.vy.toFixed(0)}`,
-        `state  ${s.locomotion}  aim:${s.aim}  face:${s.facing}`,
+        `state  ${s.locomotion}  aim:${s.aim}  face:${s.facing}${s.crouching ? '  AGACHADO' : ''}`,
         `ground ${s.grounded ? 'sim' : 'não'}  coyote:${s.coyoteMs.toFixed(0)}  buffer:${s.jumpBufferMs.toFixed(0)}`,
         `vida   ${this.player.health.current}/${this.player.health.max}  inv:${s.invulnMs.toFixed(0)}`,
         `arma   ${this.player.weaponState.weaponId}  munição:${this.player.weaponState.ammo}  granadas:${this.player.grenadeCount}`,

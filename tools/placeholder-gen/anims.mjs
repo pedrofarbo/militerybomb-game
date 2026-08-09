@@ -25,6 +25,14 @@ export const ANIMS = [
     repeat: -1,
   },
   {
+    key: 'player.crouch',
+    atlas: 'characters',
+    prefix: 'dara/crouch/',
+    frames: 2,
+    frameRate: 6,
+    repeat: -1,
+  },
+  {
     key: 'player.jump',
     atlas: 'characters',
     prefix: 'dara/jump/',

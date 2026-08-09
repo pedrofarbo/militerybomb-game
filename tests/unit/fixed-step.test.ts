@@ -53,7 +53,13 @@ function simulate(frameMs: number, durationMs: number, input: MovementInput): Si
   return { distance, steps };
 }
 
-const RUN: MovementInput = { axisX: 1, jumpHeld: false, jumpPressed: false };
+const RUN: MovementInput = {
+  axisX: 1,
+  jumpHeld: false,
+  jumpPressed: false,
+  crouchHeld: false,
+  canStandUp: true,
+};
 
 /**
  * Tolerância: o resíduo legítimo é a sobra do acumulador no último frame,
@@ -126,7 +132,13 @@ describe('passo fixo — bordas de input', () => {
     let jumps = 0;
     // Três passos no mesmo frame; só o primeiro enxerga a borda.
     for (let i = 0; i < 3; i++) {
-      const input: MovementInput = { axisX: 0, jumpHeld: true, jumpPressed: i === 0 };
+      const input: MovementInput = {
+        axisX: 0,
+        jumpHeld: true,
+        jumpPressed: i === 0,
+        crouchHeld: false,
+        canStandUp: true,
+      };
       stepMovement(state, input, FIXED_STEP_MS, out);
       if (out.jumped) jumps++;
     }
@@ -143,7 +155,13 @@ describe('passo fixo — bordas de input', () => {
     let jumps = 0;
     for (let i = 0; i < 3; i++) {
       // Pior caso: a borda vaza para todos os passos.
-      const input: MovementInput = { axisX: 0, jumpHeld: true, jumpPressed: true };
+      const input: MovementInput = {
+        axisX: 0,
+        jumpHeld: true,
+        jumpPressed: true,
+        crouchHeld: false,
+        canStandUp: true,
+      };
       stepMovement(state, input, FIXED_STEP_MS, out);
       if (out.jumped) jumps++;
       if (out.jumped) state.grounded = false;

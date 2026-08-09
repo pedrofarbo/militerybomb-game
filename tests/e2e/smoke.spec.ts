@@ -162,6 +162,70 @@ test('pular tira o player do chão e ele volta a aterrissar', async ({ page }) =
   await expect.poll(async () => (await readPlayer(page)).grounded, { timeout: 5000 }).toBe(true);
 });
 
+test('↓ no chão agacha, e agachado não anda', async ({ page }) => {
+  await boot(page);
+  await expect.poll(async () => (await readPlayer(page)).state, { timeout: 5000 }).toBe('IDLE');
+
+  await page.keyboard.down('s');
+  await expect.poll(async () => (await readPlayer(page)).state, { timeout: 5000 }).toBe('CROUCH');
+
+  /* O PONTO de agachar: ele custa mobilidade. Se desse para correr agachado,
+     o jogador passaria a fase inteira abaixado e a caixa menor viraria um
+     upgrade permanente em vez de uma escolha. */
+  const before = await readPlayer(page);
+  await page.keyboard.down('d');
+  await page.waitForTimeout(800);
+  await page.keyboard.up('d');
+  const during = await readPlayer(page);
+  expect(during.x).toBe(before.x);
+  expect(during.state).toBe('CROUCH');
+
+  // Atirar agachado é permitido — é para isso que serve ficar baixo.
+  await page.keyboard.press('j');
+  await page.waitForTimeout(200);
+  expect((await readPlayer(page)).state).toBe('CROUCH');
+
+  await page.keyboard.up('s');
+  await expect.poll(async () => (await readPlayer(page)).state, { timeout: 5000 }).toBe('IDLE');
+});
+
+test('pular sai do agachamento', async ({ page }) => {
+  await boot(page);
+  await page.keyboard.down('s');
+  await expect.poll(async () => (await readPlayer(page)).state, { timeout: 5000 }).toBe('CROUCH');
+
+  await page.keyboard.press('Space');
+  await expect.poll(async () => (await readPlayer(page)).grounded, { timeout: 5000 }).toBe(false);
+  await page.keyboard.up('s');
+});
+
+test('o direcional para baixo agacha no touch', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'os controles touch só existem no perfil mobile');
+  await boot(page);
+
+  // Direcional flutuante: nasce onde o dedo toca e é puxado para BAIXO.
+  await page.evaluate(() => {
+    const zone = document.querySelector('.touch-stick-zone')!;
+    const base = {
+      pointerId: 21,
+      pointerType: 'touch',
+      isPrimary: true,
+      bubbles: true,
+      cancelable: true,
+      clientX: 120,
+    };
+    zone.dispatchEvent(new PointerEvent('pointerdown', { ...base, clientY: 200 }));
+    zone.dispatchEvent(new PointerEvent('pointermove', { ...base, clientY: 290 }));
+  });
+
+  await expect.poll(async () => (await readPlayer(page)).state, { timeout: 5000 }).toBe('CROUCH');
+
+  await page.evaluate(() => {
+    window.dispatchEvent(new TouchEvent('touchend', { bubbles: true, touches: [] }));
+  });
+  await expect.poll(async () => (await readPlayer(page)).state, { timeout: 5000 }).toBe('IDLE');
+});
+
 test('atirar cria projétil e a troca de arma muda a munição', async ({ page }) => {
   await boot(page);
 

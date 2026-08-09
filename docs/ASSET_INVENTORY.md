@@ -5,7 +5,7 @@
 > cada linha existe hoje como placeholder e precisa ser substituída por arte
 > definitiva com **exatamente** as mesmas dimensões e contagens de frame.
 
-- **56 animações** · **214 frames de animação** · **14 sprites estáticos** · **24 tiles**
+- **57 animações** · **216 frames de animação** · **14 sprites estáticos** · **24 tiles**
 - Resolução lógica do jogo: **640×360** (altura fixa, largura elástica 640–800)
 - Grid de tiles: **16×16**
 - Paleta: **48 cores** fixas (ver `docs/ART_SPEC.md`)
@@ -17,12 +17,13 @@ transparente. `Tira` é a dimensão exata do PNG esperado.
 
 ## Atlas `characters`
 
-Pivô: origem (0.5, 1) — pés na linha y=58 do frame. Placeholder atual: 512×512, 38 frames, 5.0 KB.
+Pivô: origem (0.5, 1) — pés na linha y=58 do frame. Placeholder atual: 512×512, 40 frames, 5.4 KB.
 
 | Chave de animação | Prefixo dos frames | Frames | Frame | Tira | FPS | Repetição | Bloqueia |
 |---|---|---:|---|---|---:|---|---|
 | `player.idle` | `dara/idle/N` | 6 | 64×64 | **384×64** | 8 | loop | — |
 | `player.run` | `dara/run/N` | 8 | 64×64 | **512×64** | 14 | loop | — |
+| `player.crouch` | `dara/crouch/N` | 2 | 64×64 | **128×64** | 6 | loop | — |
 | `player.jump` | `dara/jump/N` | 2 | 64×64 | **128×64** | 10 | uma vez | — |
 | `player.fall` | `dara/fall/N` | 2 | 64×64 | **128×64** | 8 | loop | — |
 | `player.land` | `dara/land/N` | 2 | 64×64 | **128×64** | 16 | uma vez | — |

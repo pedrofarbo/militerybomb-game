@@ -28,7 +28,9 @@ import {
   PLAYER_FRAME,
   PLAYER_ARM_FRAME,
   PLAYER_SHOULDER,
+  PLAYER_SHOULDER_CROUCH,
   PLAYER_BODY_BOX,
+  PLAYER_BODY_BOX_CROUCH,
 } from './parts/characters.mjs';
 import { buildEnemyFrames, ENEMY_FRAMES } from './parts/enemies.mjs';
 import { buildBossFrames, BOSS_FRAMES, BOSS_ANCHORS } from './parts/boss.mjs';
@@ -192,7 +194,9 @@ export const ART_METRICS = {
 \t\tframe: ${PLAYER_FRAME},
 \t\tarmFrame: ${PLAYER_ARM_FRAME},
 \t\tshoulder: { x: ${PLAYER_SHOULDER.x}, y: ${PLAYER_SHOULDER.y} },
+\t\tshoulderCrouch: { x: ${PLAYER_SHOULDER_CROUCH.x}, y: ${PLAYER_SHOULDER_CROUCH.y} },
 \t\tbody: { x: ${PLAYER_BODY_BOX.x}, y: ${PLAYER_BODY_BOX.y}, w: ${PLAYER_BODY_BOX.w}, h: ${PLAYER_BODY_BOX.h} },
+\t\tbodyCrouch: { x: ${PLAYER_BODY_BOX_CROUCH.x}, y: ${PLAYER_BODY_BOX_CROUCH.y}, w: ${PLAYER_BODY_BOX_CROUCH.w}, h: ${PLAYER_BODY_BOX_CROUCH.h} },
 \t\tfeetY: 58,
 \t},
 \tenemy: { soldier: ${ENEMY_FRAMES.soldier}, heavy: ${ENEMY_FRAMES.heavy}, turret: ${ENEMY_FRAMES.turret} },

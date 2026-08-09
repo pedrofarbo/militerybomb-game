@@ -36,18 +36,26 @@ que é o requisito de legibilidade que manda no enquadramento.
 Estes números estão codificados em `src/assets/sprite-manifest.generated.ts`
 (`ART_METRICS`) e no gerador. Mudá-los exige mudar código.
 
-| Entidade               | Frame          | Área visível | Colisão lógica          | Linha de apoio                                               |
-| ---------------------- | -------------- | ------------ | ----------------------- | ------------------------------------------------------------ |
-| Player (corpo)         | **64 × 64**    | ~24 × 44     | 20 × 40 em (22, 18)     | pés em **y = 58**                                            |
-| Player (braço de mira) | **32 × 32**    | ~30 × 12     | —                       | pivô = centro (16,16) = ombro, acoplado em (34, 30) do corpo |
-| Soldado                | **48 × 48**    | ~22 × 36     | 16 × 32                 | pés na base                                                  |
-| Soldado Pesado         | **64 × 64**    | ~46 × 52     | 28 × 44                 | pés na base                                                  |
-| Torreta                | **48 × 48**    | ~36 × 34     | 24 × 20 (base)          | base em y = 46                                               |
-| Boss — base            | **192 × 160**  | ~172 × 116   | multi-hurtbox           | chão em **y = 156**                                          |
-| Boss — garra           | **80 × 80**    | ~60 × 70     | 40 × 50                 | pivô central                                                 |
-| Boss — núcleo          | **32 × 32**    | 32 × 32      | 24 × 24                 | pivô central                                                 |
-| Tile                   | **16 × 16**    | 16 × 16      | conforme `tileset.json` | —                                                            |
-| Props                  | ver inventário | —            | conforme prop           | apoiado no chão                                              |
+| Entidade               | Frame          | Área visível | Colisão lógica          | Linha de apoio                                                     |
+| ---------------------- | -------------- | ------------ | ----------------------- | ------------------------------------------------------------------ |
+| Player (corpo)         | **64 × 64**    | ~24 × 44     | 20 × 40 em (22, 18)     | pés em **y = 58**                                                  |
+| Player (agachado)      | **64 × 64**    | ~26 × 24     | 20 × 24 em (22, 34)     | mesma linha de pés (58); topo em **y = 34**                        |
+| Player (braço de mira) | **32 × 32**    | ~30 × 12     | —                       | pivô = centro (16,16) = ombro, em (34, 30) — **(34, 43)** agachado |
+| Soldado                | **48 × 48**    | ~22 × 36     | 16 × 32                 | pés na base                                                        |
+| Soldado Pesado         | **64 × 64**    | ~46 × 52     | 28 × 44                 | pés na base                                                        |
+| Torreta                | **48 × 48**    | ~36 × 34     | 24 × 20 (base)          | base em y = 46                                                     |
+| Boss — base            | **192 × 160**  | ~172 × 116   | multi-hurtbox           | chão em **y = 156**                                                |
+| Boss — garra           | **80 × 80**    | ~60 × 70     | 40 × 50                 | pivô central                                                       |
+| Boss — núcleo          | **32 × 32**    | 32 × 32      | 24 × 24                 | pivô central                                                       |
+| Tile                   | **16 × 16**    | 16 × 16      | conforme `tileset.json` | —                                                                  |
+| Props                  | ver inventário | —            | conforme prop           | apoiado no chão                                                    |
+
+**Agachar não muda o frame.** `player.crouch` usa o mesmo 64×64 e a mesma linha
+de pés; o que muda é a silhueta ocupar só os 24 px de baixo. Isso é requisito de
+GAMEPLAY, não estética: a caixa de colisão agachada tem exatamente essa altura, e
+é ela que faz um tiro passar por cima. Se o desenho for mais alto que a caixa, o
+jogador vê o tiro atravessar a cabeça sem acertar — e conclui que o jogo está
+quebrado. Desenhe agachado dentro de y = 34…58.
 
 **Regra de sobra de frame:** o frame é maior que a silhueta de propósito — a sobra
 absorve recuo, agachamento de aterrissagem, cano de arma e fumaça sem exigir um

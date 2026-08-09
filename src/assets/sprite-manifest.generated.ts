@@ -38,6 +38,7 @@ export interface AnimDef {
 export const ANIMS = [
 	{ key: 'player.idle', atlas: 'characters', prefix: 'dara/idle/', frames: 6, frameRate: 8, repeat: -1 },
 	{ key: 'player.run', atlas: 'characters', prefix: 'dara/run/', frames: 8, frameRate: 14, repeat: -1 },
+	{ key: 'player.crouch', atlas: 'characters', prefix: 'dara/crouch/', frames: 2, frameRate: 6, repeat: -1 },
 	{ key: 'player.jump', atlas: 'characters', prefix: 'dara/jump/', frames: 2, frameRate: 10, repeat: 0 },
 	{ key: 'player.fall', atlas: 'characters', prefix: 'dara/fall/', frames: 2, frameRate: 8, repeat: -1 },
 	{ key: 'player.land', atlas: 'characters', prefix: 'dara/land/', frames: 2, frameRate: 16, repeat: 0 },
@@ -124,7 +125,9 @@ export const ART_METRICS = {
 		frame: 64,
 		armFrame: 32,
 		shoulder: { x: 34, y: 30 },
+		shoulderCrouch: { x: 34, y: 43 },
 		body: { x: 22, y: 18, w: 20, h: 40 },
+		bodyCrouch: { x: 22, y: 34, w: 20, h: 24 },
 		feetY: 58,
 	},
 	enemy: { soldier: 48, heavy: 64, turret: 48 },

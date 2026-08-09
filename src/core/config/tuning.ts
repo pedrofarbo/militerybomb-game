@@ -70,6 +70,23 @@ export const PLAYER = {
    * player descer por ela. Sem isso, subir numa plataforma vira uma armadilha.
    */
   dropThroughMs: 220,
+
+  /* ── Agachar ──
+   * Segurar ↓ no chão abaixa. O valor de verdade é a CAIXA MENOR: um tiro que
+   * passaria no peito passa por cima. É a única defesa do jogo que não custa
+   * vida nem munição — e, por isso, ela custa MOBILIDADE: agachado não se
+   * anda. Um agachamento que também deixa correr não é uma escolha, é um
+   * upgrade permanente, e o jogador passaria a fase inteira abaixado.
+   */
+  crouch: {
+    bodyHeight: 24,
+    /** Dentro do frame de 64: a linha dos pés (58) menos a altura da caixa. */
+    bodyOffsetY: 34,
+    /** Ombro mais baixo — o tiro sai na altura do peito agachado. */
+    shoulderY: -15,
+    /** Tempo mínimo agachado. Evita piscar entre em pé e agachado num toque. */
+    minMs: 90,
+  },
   hurtMs: 260,
   invulnMs: 900,
   invulnBlinkHz: 12,

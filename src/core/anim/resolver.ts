@@ -19,6 +19,7 @@ export interface AnimSelection {
 const PLAYER_ANIMS: Record<Locomotion, AnimSelection> = {
   [Locomotion.Idle]: { key: 'player.idle', lock: false },
   [Locomotion.Run]: { key: 'player.run', lock: false },
+  [Locomotion.Crouch]: { key: 'player.crouch', lock: false },
   [Locomotion.JumpRise]: { key: 'player.jump', lock: false },
   [Locomotion.Fall]: { key: 'player.fall', lock: false },
   [Locomotion.Land]: { key: 'player.land', lock: false },

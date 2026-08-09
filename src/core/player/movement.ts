@@ -21,6 +21,13 @@ export interface MovementInput {
   axisX: number;
   jumpHeld: boolean;
   jumpPressed: boolean;
+  /** ↓ segurado. Só vira agachamento no chão — ver `stepCrouch`. */
+  crouchHeld: boolean;
+  /**
+   * Há espaço para ficar em pé? Respondido pela camada de jogo, que é quem
+   * conhece o tilemap. `false` MANTÉM o agachamento mesmo com o botão solto.
+   */
+  canStandUp: boolean;
 }
 
 /** Resultado reutilizável — o chamador é dono do objeto (zero alocação/frame). */
@@ -88,9 +95,14 @@ export function stepMovement(
     return;
   }
 
+  /* ── Agachar ──
+     Antes do horizontal de propósito: agachado zera o eixo, e é isso que faz
+     abaixar CUSTAR mobilidade em vez de ser vantagem grátis. */
+  stepCrouch(s, input, dtMs);
+
   /* ── Horizontal ── */
   const stunned = s.hurtMs > 0;
-  const axis = stunned ? 0 : clamp(input.axisX, -1, 1);
+  const axis = stunned || s.crouching ? 0 : clamp(input.axisX, -1, 1);
   const target = axis * PLAYER.maxSpeed;
   const wantsMove = Math.abs(axis) > 0.01;
 
@@ -115,9 +127,17 @@ export function stepMovement(
     }
   }
 
-  /* ── Pulo ── */
-  const canJump = (s.grounded || s.coyoteMs > 0) && s.jumpRearmMs <= 0 && !stunned;
+  /* ── Pulo ──
+     Pular sai do agachamento — mas só se houver teto. Sem a checagem, o pulo
+     debaixo de uma viga levantaria o corpo para dentro do tile. */
+  const canJump =
+    (s.grounded || s.coyoteMs > 0) &&
+    s.jumpRearmMs <= 0 &&
+    !stunned &&
+    (!s.crouching || input.canStandUp);
   if (s.jumpBufferMs > 0 && canJump) {
+    s.crouching = false;
+    s.crouchMs = 0;
     s.vy = -PLAYER.jumpVelocity;
     s.grounded = false;
     s.coyoteMs = 0;
@@ -149,10 +169,51 @@ export function stepMovement(
   s.wasGrounded = s.grounded;
 }
 
+/**
+ * Entra e sai do agachamento.
+ *
+ * Duas regras que existem por motivos concretos:
+ *
+ * · Só no CHÃO. Agachar no ar seria uma segunda forma de mudar a hitbox em
+ *   pleno pulo, e o jogador não tem como prever o resultado.
+ * · Levantar exige ESPAÇO (`canStandUp`). Crescer a caixa debaixo de uma viga
+ *   enfiaria o corpo dentro do tile, e a resolução do Arcade cospe o player
+ *   para fora em uma direção qualquer — o clássico "atravessei o chão".
+ */
+function stepCrouch(s: PlayerState, input: MovementInput, dtMs: number): void {
+  if (s.crouching) s.crouchMs += dtMs;
+
+  if (s.dead || s.hurtMs > 0 || !s.grounded) {
+    // Sair pelo alto (pulo, dano, queda) só é permitido se couber em pé.
+    if (s.crouching && input.canStandUp) {
+      s.crouching = false;
+      s.crouchMs = 0;
+    }
+    return;
+  }
+
+  if (input.crouchHeld) {
+    if (!s.crouching) {
+      s.crouching = true;
+      s.crouchMs = 0;
+    }
+    return;
+  }
+
+  /* Tempo mínimo agachado: sem ele, um toque de raspão no ↓ faz a caixa
+     encolher e crescer no mesmo frame — o que aparece como o personagem
+     piscando e, pior, como um empurrão do Arcade ao recolocar o corpo. */
+  if (s.crouching && s.crouchMs >= PLAYER.crouch.minMs && input.canStandUp) {
+    s.crouching = false;
+    s.crouchMs = 0;
+  }
+}
+
 function resolveLocomotion(s: PlayerState, wantsMove: boolean): Locomotion {
   if (s.dead) return Locomotion.Dead;
   if (s.hurtMs > 0) return Locomotion.Hurt;
   if (!s.grounded) return s.vy < 0 ? Locomotion.JumpRise : Locomotion.Fall;
+  if (s.crouching) return Locomotion.Crouch;
   if (s.landingMs > 0) return Locomotion.Land;
   if (wantsMove || Math.abs(s.vx) > 8) return Locomotion.Run;
   return Locomotion.Idle;

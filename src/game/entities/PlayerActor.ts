@@ -65,6 +65,11 @@ export interface PlayerCallbacks {
    * único. Só ela conhece o tilemap; o Actor só precisa da resposta.
    */
   isOnOneWayPlatform(x: number, y: number): boolean;
+  /**
+   * Cabe em pé nesta posição? Mesma divisão: só a cena conhece o tilemap.
+   * Sem esta pergunta, levantar debaixo de uma viga enfia o corpo no tile.
+   */
+  hasHeadroom(x: number, feetY: number): boolean;
 }
 
 const FRAME = ART_METRICS.player.frame;
@@ -75,7 +80,15 @@ export class PlayerActor {
   readonly arm: Phaser.GameObjects.Sprite;
   readonly state: PlayerState;
 
-  private readonly movementInput: MovementInput = { axisX: 0, jumpHeld: false, jumpPressed: false };
+  private readonly movementInput: MovementInput = {
+    axisX: 0,
+    jumpHeld: false,
+    jumpPressed: false,
+    crouchHeld: false,
+    canStandUp: true,
+  };
+  /** Última altura de caixa aplicada — evita reconfigurar o corpo todo frame. */
+  private bodyHeightApplied: number = PLAYER.bodyHeight;
   private readonly movementResult: MovementResult = createMovementResult();
   private readonly fireOutcome = createFireOutcome();
   private readonly fireContext: FireContext;
@@ -169,6 +182,8 @@ export class PlayerActor {
       this.movementInput.axisX = 0;
       this.movementInput.jumpHeld = false;
       this.movementInput.jumpPressed = false;
+      this.movementInput.crouchHeld = false;
+      this.movementInput.canStandUp = true;
       stepMovement(s, this.movementInput, dtMs, this.movementResult);
       body.setVelocity(s.vx, s.vy);
       return;
@@ -184,8 +199,14 @@ export class PlayerActor {
     // Descer por uma plataforma consome o pulo: senão o player desce e pula
     // no mesmo toque, e nunca consegue atravessar.
     this.movementInput.jumpPressed = input.justPressed(Action.Jump) && !dropping;
+    /* ↓ agacha, mas NÃO enquanto desce por uma plataforma: ali o mesmo ↓ está
+       servindo à descida, e agachar no mesmo toque congelaria o player em cima
+       da plataforma que ele acabou de pedir para atravessar. */
+    this.movementInput.crouchHeld = input.held(Action.AimDown) && !dropping;
+    this.movementInput.canStandUp = this.callbacks.hasHeadroom(this.sprite.x, this.sprite.y);
 
     stepMovement(s, this.movementInput, dtMs, this.movementResult);
+    this.applyCrouchBody();
 
     if (this.movementResult.jumped) this.callbacks.onJump(this.sprite.x, this.sprite.y);
     if (this.movementResult.landed) {
@@ -202,6 +223,30 @@ export class PlayerActor {
     this.updateGrenade(input, aim.angleRad, nowMs);
   }
 
+  /**
+   * Sincroniza a caixa de colisão com o agachamento.
+   *
+   * A LINHA DOS PÉS não se mexe: só o topo desce. É isso que faz o tiro passar
+   * por cima sem que o personagem afunde no chão nem flutue ao levantar.
+   * Reconfigura só quando muda — mexer no corpo do Arcade todo frame o obriga
+   * a reavaliar contatos e produz tremor contra a parede.
+   */
+  private applyCrouchBody(): void {
+    const height = this.state.crouching ? PLAYER.crouch.bodyHeight : PLAYER.bodyHeight;
+    if (height === this.bodyHeightApplied) return;
+    this.bodyHeightApplied = height;
+
+    const body = this.sprite.body as Phaser.Physics.Arcade.Body;
+    const offsetY = this.state.crouching ? PLAYER.crouch.bodyOffsetY : PLAYER.bodyOffsetY;
+    body.setSize(PLAYER.bodyWidth, height);
+    body.setOffset(PLAYER.bodyOffsetX, offsetY);
+  }
+
+  /** Altura do ombro AGORA — o tiro sai mais baixo quando agachado. */
+  private get shoulderY(): number {
+    return this.state.crouching ? PLAYER.crouch.shoulderY : PLAYER.shoulderY;
+  }
+
   /* ─────────────────────────── Granadas ─────────────────────────── */
 
   private updateGrenade(input: InputSnapshot, angleRad: number, nowMs: number): void {
@@ -213,7 +258,7 @@ export class PlayerActor {
     this.grenadeReadyAtMs = nowMs + GRENADE.cooldownMs;
     this.callbacks.onGrenadeThrown(
       this.sprite.x + PLAYER.shoulderX * this.state.facing,
-      this.sprite.y + PLAYER.shoulderY,
+      this.sprite.y + this.shoulderY,
       angleRad,
       this.state.facing,
     );
@@ -299,8 +344,14 @@ export class PlayerActor {
     return this.box;
   }
 
+  /**
+   * Ponto de mira que os inimigos usam. Desce junto com o agachamento — um
+   * inimigo que continuasse mirando no peito em pé estaria atirando no ar, e
+   * o jogador veria tiros atravessando a cabeça sem acertar.
+   */
   get torsoY(): number {
-    return this.sprite.y - PLAYER.bodyHeight * 0.55;
+    const height = this.state.crouching ? PLAYER.crouch.bodyHeight : PLAYER.bodyHeight;
+    return this.sprite.y - height * 0.55;
   }
 
   takeDamage(info: DamageInfo, nowMs: number): DamageResult {
@@ -369,7 +420,7 @@ export class PlayerActor {
     const def = WEAPONS[this.weapon.weaponId];
 
     const shoulderX = this.sprite.x + PLAYER.shoulderX * s.facing;
-    const shoulderY = this.sprite.y + PLAYER.shoulderY;
+    const shoulderY = this.sprite.y + this.shoulderY;
     const muzzleX = shoulderX + Math.cos(angleRad) * PLAYER.muzzleDistance;
     const muzzleY = shoulderY + Math.sin(angleRad) * PLAYER.muzzleDistance;
 
@@ -416,7 +467,7 @@ export class PlayerActor {
     /* Braço de mira: sprite separado ancorado no ombro (ART_SPEC §2). */
     this.arm.setPosition(
       this.sprite.x + PLAYER.shoulderX * s.facing,
-      this.sprite.y + PLAYER.shoulderY,
+      this.sprite.y + this.shoulderY,
     );
     this.arm.setFlipX(s.facing === -1);
     /* O braço tem só dois frames (repouso e recuo): trocar o frame direto é

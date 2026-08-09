@@ -11,8 +11,12 @@ export const PLAYER_FRAME = 64;
 export const PLAYER_ARM_FRAME = 32;
 /** Onde o braço de mira se acopla, em coordenadas do frame do corpo. */
 export const PLAYER_SHOULDER = { x: 34, y: 30 };
+/** Ombro AGACHADO — o braço de mira desce junto com o corpo. */
+export const PLAYER_SHOULDER_CROUCH = { x: 34, y: 43 };
 /** Caixa de colisão lógica dentro do frame (ver docs/ART_SPEC.md). */
 export const PLAYER_BODY_BOX = { x: 22, y: 18, w: 20, h: 40 };
+/** Caixa agachada: mesma base (pés em 58), topo 16 px mais baixo. */
+export const PLAYER_BODY_BOX_CROUCH = { x: 22, y: 34, w: 20, h: 24 };
 
 const SKIN = 'skin3';
 const SUIT = 'rust3';
@@ -20,6 +24,55 @@ const SUIT_DARK = 'rust2';
 const SUIT_LIGHT = 'rust4';
 const GEAR = 'con3';
 const GEAR_DARK = 'con2';
+
+/**
+ * Dara agachada.
+ *
+ * NÃO é o `trooper` com `bob` alto: agachar precisa LER como agachar já na
+ * silhueta, senão o jogador não percebe que o estado mudou.
+ *
+ * A figura inteira cabe entre y=34 e y=58 — exatamente a caixa de colisão
+ * agachada. É essa coincidência que faz a promessa visual bater com a regra:
+ * o que passa por cima do desenho passa por cima da hitbox. A primeira versão
+ * deixava o capacete 8 px acima da caixa, e na tela isso vira "o tiro
+ * atravessou a minha cabeça".
+ */
+function trooperCrouch(c, o = {}) {
+  const { bob = 0 } = o;
+  const y = (v) => v + bob;
+
+  // Perna traseira dobrada, joelho no chão
+  c.block(24, y(48), 9, 8, GEAR_DARK, { outline: 'ink' });
+  c.block(23, y(54), 11, 4, GEAR, { outline: 'ink' });
+
+  // Mochila, agora baixa e para trás
+  c.block(20, y(42), 6, 9, GEAR_DARK, { outline: 'ink', top: GEAR });
+  c.rect(21, y(44), 4, 2, 'teal3');
+
+  // Perna dianteira: coxa recolhida e canela à frente
+  c.block(31, y(46), 8, 7, GEAR, { outline: 'ink', top: 'con4' });
+  c.block(31, y(53), 12, 5, GEAR_DARK, { outline: 'ink' });
+
+  // Quadril
+  c.block(25, y(45), 13, 6, SUIT_DARK, { outline: 'ink' });
+
+  // Tronco, inclinado para a frente
+  c.block(25, y(42), 15, 9, SUIT, { outline: 'ink', top: SUIT_LIGHT });
+  c.line(27, y(49), 36, y(44), 'sig3');
+  c.rect(26, y(45), 3, 3, 'teal3');
+  c.stroke(26, y(45), 3, 3, 'ink');
+
+  // Braço de trás apoiado sobre o joelho
+  c.block(24, y(44), 5, 7, SUIT_DARK, { outline: 'ink' });
+
+  // Cabeça e capacete — o TOPO fica em 34, a borda da caixa agachada
+  c.rect(31, y(41), 5, 3, SKIN);
+  c.block(28, y(37), 11, 7, SKIN, { outline: 'ink' });
+  c.block(27, y(34), 13, 6, GEAR, { outline: 'ink', top: 'con4' });
+  c.rect(34, y(38), 6, 3, 'teal4');
+  c.stroke(34, y(38), 6, 3, 'ink');
+  c.rect(27, y(35), 4, 2, 'sig3');
+}
 
 function trooper(c, o = {}) {
   const { bob = 0, lean = 0, legs = [0, 0, 0, 0], armStub = 0, dead = false, hurt = false } = o;
@@ -132,6 +185,16 @@ export function buildCharacterFrames() {
       `dara/run/${i}`,
       frame((c) => trooper(c, { bob: RUN_BOB[i], lean: 1, legs, armStub: 1 })),
     ),
+  );
+
+  // crouch — 2 frames (respiração curta, para não parecer travado)
+  add(
+    `dara/crouch/0`,
+    frame((c) => trooperCrouch(c, { bob: 0 })),
+  );
+  add(
+    `dara/crouch/1`,
+    frame((c) => trooperCrouch(c, { bob: 1 })),
   );
 
   // jump (subida) — 2 frames
