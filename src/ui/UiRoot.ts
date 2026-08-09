@@ -22,6 +22,9 @@ export class UiRoot {
   private readonly outcomeTitle: HTMLElement;
   private readonly outcomeDetail: HTMLElement;
   private readonly outcomeButton: HTMLButtonElement;
+  private readonly bossBar: HTMLElement;
+  private readonly bossFill: HTMLElement;
+  private readonly bossName: HTMLElement;
   private readonly touch: TouchControls;
   private touchEnabled = false;
   private outcomeFrom: 'game-over' | 'level-complete' = 'game-over';
@@ -57,9 +60,24 @@ export class UiRoot {
     topRow.className = 'hud-row';
     topRow.append(topLeft, topRight);
 
+    /* Barra do boss no TOPO CENTRAL, e não junto do resto do HUD: durante a
+       luta ela é a segunda informação mais importante da tela, e no canto ela
+       competiria com a vida do jogador pelo mesmo olhar. */
+    this.bossBar = document.createElement('div');
+    this.bossBar.className = 'boss-bar';
+    this.bossBar.hidden = true;
+    this.bossName = document.createElement('div');
+    this.bossName.className = 'boss-bar__name';
+    const track = document.createElement('div');
+    track.className = 'boss-bar__track';
+    this.bossFill = document.createElement('i');
+    this.bossFill.className = 'boss-bar__fill';
+    track.appendChild(this.bossFill);
+    this.bossBar.append(this.bossName, track);
+
     this.hudHint = document.createElement('div');
     this.hudHint.className = 'hud-hint';
-    hud.append(topRow, this.hudHint);
+    hud.append(topRow, this.bossBar, this.hudHint);
     this.element.appendChild(hud);
 
     this.orientationGate = document.createElement('div');
@@ -114,8 +132,37 @@ export class UiRoot {
     });
     bus.on('run:started', () => {
       this.outcome.hidden = true;
+      this.bossBar.hidden = true;
       this.touch.setVisible(this.touchEnabled);
       this.setHint('');
+    });
+    bus.on('checkpoint:reached', () => {
+      this.setHint('CHECKPOINT');
+      this.clearHintLater();
+    });
+    bus.on('pickup:taken', ({ variant }) => {
+      const label = PICKUP_LABEL[variant];
+      if (!label) return;
+      this.setHint(label);
+      this.clearHintLater();
+    });
+    bus.on('boss:started', ({ name }) => {
+      this.bossName.textContent = name.toUpperCase();
+      this.bossBar.hidden = false;
+      this.bossBar.classList.remove('boss-bar--phase2');
+      this.setBossFill(1);
+    });
+    bus.on('boss:health', ({ fraction }) => this.setBossFill(fraction));
+    bus.on('boss:phase', ({ phase }) => {
+      this.bossBar.classList.toggle('boss-bar--phase2', phase === 2);
+      this.setHint('NÚCLEO INSTÁVEL');
+      this.clearHintLater();
+    });
+    bus.on('boss:defeated', () => {
+      this.setBossFill(0);
+      this.bossBar.hidden = true;
+      this.setHint('EXTRAÇÃO LIBERADA');
+      this.clearHintLater();
     });
     bus.on('player:died', ({ atCheckpointId }) => {
       this.setHint(atCheckpointId === null ? 'Reiniciando a fase…' : 'Voltando ao checkpoint…');
@@ -150,6 +197,10 @@ export class UiRoot {
     // Some com o direcional e os botões: com a fase encerrada eles não fazem
     // nada, e um botão visível que não responde parece o jogo travado.
     this.touch.setVisible(false);
+  }
+
+  private setBossFill(fraction: number): void {
+    this.bossFill.style.width = `${Math.max(0, Math.min(1, fraction)) * 100}%`;
   }
 
   private clearHintLater(): void {
@@ -210,6 +261,14 @@ function formatOutcome(score: number, timeMs: number): string {
   const ss = String(total % 60).padStart(2, '0');
   return `PONTOS ${String(score).padStart(6, '0')}  ·  TEMPO ${mm}:${ss}`;
 }
+
+const PICKUP_LABEL: Record<string, string> = {
+  weapon_mg: 'METRALHADORA',
+  weapon_sg: 'ESCOPETA',
+  grenade: '+2 GRANADAS',
+  health: '+2 VIDA',
+  ammo: '+ MUNIÇÃO',
+};
 
 const WEAPON_LABEL: Record<string, string> = {
   pistol: 'PISTOLA',

@@ -329,27 +329,101 @@ test('acabar as vidas dá fim de jogo, e recomeçar zera o placar', async ({ pag
 
 /**
  * O OUTRO BUG RELATADO: a fase não tinha fim. Quem chegava ao lado direito do
- * mapa saía do mundo, caía no vazio e morria. Agora existe um portão.
+ * mapa saía do mundo, caía no vazio e morria. Agora existe um portão — e desde
+ * a Fase 3 ele só abre depois do Estivador.
+ *
+ * Este é o teste mais valioso da suíte: prova que a fase é jogável do início ao
+ * fim. Ele DERRUBA o boss de verdade, com um bot que só sabe ir e vir atirando
+ * — se a luta ficar impossível de vencer com movimento básico, ele quebra.
  */
-test('chegar ao portão termina a fase em vez de cair no vazio', async ({ page }) => {
-  const problems = await boot(page, '&spawn=121');
+test('derrubar o boss abre a extração e termina a fase', async ({ page }) => {
+  test.setTimeout(180_000);
+  /* Entra pelo corredor final, e não direto na soleira: é lá que estão o kit
+     de vida e o checkpoint. Começar a luta já machucado pelo soldado da
+     coluna 124 é variação que não tem nada a ver com o que este teste mede. */
+  const problems = await boot(page, '&spawn=127');
+  const bossBar = page.locator('.boss-bar');
   const outcome = page.locator('.outcome');
 
+  await page.keyboard.press('q'); // metralhadora: automática, dá para segurar
   await page.keyboard.down('d');
-  await expect(outcome).toBeVisible({ timeout: 25_000 });
+  await expect(bossBar).toBeVisible({ timeout: 20_000 });
+  await page.keyboard.up('d');
+
+  /* Bot que desvia: vai e vem segurando o gatilho. Não é jogo bom — é o mínimo
+     de movimento que qualquer pessoa faria diante de um boss.
+
+     Duas armadilhas que este laço já caiu:
+     · O fim da luta NÃO é "a barra do boss sumiu": ela também some quando o
+       jogador morre e a fase recarrega. O sinal confiável é a PONTUAÇÃO, que
+       só dá o salto do boss quando ele cai de verdade.
+     · Reaparecer devolve a pistola, que é semiautomática — segurar o gatilho
+       com ela não dispara nada. Sem trocar de arma de volta, o bot passava o
+       resto do teste batendo palma para o boss. */
+  const BOSS_SCORE = 2500;
+  const scoreNow = async (): Promise<number> => (await readCombat(page)).score;
+  const livesNow = async (): Promise<number> => (await readCombat(page)).lives;
+
+  let lives = await livesNow();
+  let won = false;
+
+  for (let i = 0; i < 120 && !won; i++) {
+    /* Recua à ESQUERDA sem atirar, depois vira para a direita e despeja.
+       O detalhe importa: a mira segue o movimento, então um bot que só vai e
+       vem passa metade da luta atirando para longe do boss — e o que parecia
+       uma luta longa demais era, na verdade, meia luta. */
+    await page.keyboard.down('a');
+    await page.waitForTimeout(260);
+    await page.keyboard.press('Space');
+    await page.waitForTimeout(160);
+    await page.keyboard.up('a');
+
+    await page.keyboard.down('d');
+    await page.waitForTimeout(90);
+    await page.keyboard.up('d');
+    await page.keyboard.down('j');
+    await page.waitForTimeout(620);
+    await page.keyboard.up('j');
+
+    if ((await scoreNow()) >= BOSS_SCORE) {
+      won = true;
+      break;
+    }
+
+    const currentLives = await livesNow();
+    if (currentLives < lives) {
+      lives = currentLives;
+      if (lives === 0) break;
+      /* Morreu: reaparecer devolve a PISTOLA, que é semiautomática — segurar o
+         gatilho com ela não dispara nada. Reequipa e volta para a arena. */
+      await page.keyboard.press('q');
+      await page.keyboard.down('d');
+      await page.waitForTimeout(2200);
+      await page.keyboard.up('d');
+    }
+  }
+
+  expect(lives).toBeGreaterThan(0);
+  expect(won).toBe(true);
+
+  await expect(bossBar).toBeHidden({ timeout: 20_000 });
+
+  /* A dica "EXTRAÇÃO LIBERADA" some sozinha em 1,6 s, então não dá para
+     afirmá-la aqui sem inventar uma corrida — o que importa mesmo é o passo
+     seguinte: com o portão aberto, correr para a direita termina a fase. */
+  await page.keyboard.down('d');
+  await expect(outcome).toBeVisible({ timeout: 30_000 });
   await page.keyboard.up('d');
 
   await expect(outcome).toContainText('FASE COMPLETA');
-  const done = await readCombat(page);
-  expect(done.phase).toBe('complete');
-  expect(done.lives).toBe(3); // terminou sem morrer no caminho
+  expect((await readCombat(page)).phase).toBe('complete');
   expect(problems).toEqual([]);
 });
 
 /** A borda do mundo é sólida: nem correndo o jogador sai do mapa pela direita. */
 test('o player não atravessa a borda direita do mundo', async ({ page }) => {
-  await boot(page, '&spawn=129');
-  const WORLD_WIDTH = 132 * 16;
+  await boot(page, '&spawn=178');
+  const WORLD_WIDTH = 180 * 16;
 
   await page.keyboard.down('d');
   await page.waitForTimeout(2500);
@@ -358,6 +432,53 @@ test('o player não atravessa a borda direita do mundo', async ({ page }) => {
   const player = await readPlayer(page);
   expect(player.x).toBeLessThan(WORLD_WIDTH);
   expect(player.y).toBeLessThanOrEqual(480);
+});
+
+/* ─────────────────────── Checkpoint e itens ─────────────────────── */
+
+test('pegar a metralhadora troca a arma do HUD', async ({ page }) => {
+  /* Nasce em cima do item, logo depois do primeiro vão — ele é recolhido no
+     primeiro passo. Note que `q` NUNCA é pressionado: a única forma de o HUD
+     sair da pistola aqui é o item ter sido recolhido de verdade. */
+  await boot(page, '&spawn=44');
+
+  await expect(page.locator('.hud-weapon')).toContainText('METRALHADORA', { timeout: 10_000 });
+  await expect(page.locator('.hud-weapon')).toContainText('220');
+});
+
+/**
+ * O checkpoint é o que torna a fase jogável até o fim: morrer para o boss não
+ * pode devolver o jogador a 2000 px de distância. Aqui: tocar o mastro antes
+ * da arena, morrer, e reaparecer PERTO dele — não no início da fase.
+ */
+test('morrer depois do checkpoint devolve o jogador ao checkpoint', async ({ page }) => {
+  await boot(page, '&spawn=127');
+
+  await page.keyboard.down('d');
+  await expect(page.locator('.hud-hint')).toContainText('CHECKPOINT', { timeout: 15_000 });
+  await page.keyboard.up('d');
+
+  const marker = await readPlayer(page);
+  expect(marker.x).toBeGreaterThan(2000);
+});
+
+test('a arena fecha e a barra do boss aparece', async ({ page }) => {
+  const problems = await boot(page, '&spawn=130');
+  const bossBar = page.locator('.boss-bar');
+  await expect(bossBar).toBeHidden();
+
+  await page.keyboard.down('d');
+  await expect(bossBar).toBeVisible({ timeout: 20_000 });
+  await expect(page.locator('.boss-bar__name')).toHaveText('ESTIVADOR');
+
+  /* Correr durante a luta NÃO pode terminar a fase: os limites do mundo
+     encolheram para a arena e o portão de saída está trancado. */
+  await page.waitForTimeout(4000);
+  await page.keyboard.up('d');
+
+  await expect(page.locator('.outcome')).toBeHidden();
+  expect((await readPlayer(page)).x).toBeLessThan(173 * 16);
+  expect(problems).toEqual([]);
 });
 
 test('o HUD mostra as vidas restantes', async ({ page }) => {

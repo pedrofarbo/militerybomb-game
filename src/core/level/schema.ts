@@ -21,7 +21,7 @@ export interface ParallaxLayerDef {
 export type EnemyEntityType = 'soldier' | 'heavy' | 'turret';
 export type DestructibleEntityType = 'crate' | 'barrel' | 'generator';
 /** Marcadores: não têm vida nem colisão sólida, só disparam algo ao encostar. */
-export type MarkerEntityType = 'exit';
+export type MarkerEntityType = 'exit' | 'checkpoint' | 'pickup' | 'boss' | 'arena';
 export type LevelEntityType = EnemyEntityType | DestructibleEntityType | MarkerEntityType;
 
 /* Conjuntos em runtime para a cena decidir o que instanciar. Ficam aqui, ao
@@ -37,7 +37,24 @@ export const DESTRUCTIBLE_ENTITY_TYPES: ReadonlySet<LevelEntityType> = new Set<L
   'barrel',
   'generator',
 ]);
-export const MARKER_ENTITY_TYPES: ReadonlySet<LevelEntityType> = new Set<LevelEntityType>(['exit']);
+export const MARKER_ENTITY_TYPES: ReadonlySet<LevelEntityType> = new Set<LevelEntityType>([
+  'exit',
+  'checkpoint',
+  'pickup',
+  'boss',
+  'arena',
+]);
+
+/** O que um `pickup` entrega. Chave lógica, não sprite — o sprite é derivado. */
+export type PickupVariant = 'weapon_mg' | 'weapon_sg' | 'grenade' | 'health' | 'ammo';
+
+export const PICKUP_VARIANTS: ReadonlySet<string> = new Set<PickupVariant>([
+  'weapon_mg',
+  'weapon_sg',
+  'grenade',
+  'health',
+  'ammo',
+]);
 
 /** Posicionamento na fonte da fase: coordenadas em TILES, legíveis à mão. */
 export interface LevelEntitySource {
@@ -48,6 +65,15 @@ export interface LevelEntitySource {
   readonly facing?: -1 | 1;
   /** Meia-largura da patrulha, em tiles. Ausente = não patrulha. */
   readonly patrolTiles?: number;
+  /** Só para `pickup`: o que ele entrega. */
+  readonly variant?: PickupVariant;
+  /** Identificador estável. Obrigatório em `checkpoint` — é a chave do save. */
+  readonly id?: string;
+  /**
+   * Só para `arena`: largura da área travada, em tiles, a partir de `tileX`.
+   * A câmera prende aqui durante a luta e o portão fecha na entrada.
+   */
+  readonly spanTiles?: number;
 }
 
 /** Posicionamento já resolvido em pixels de mundo. */
@@ -58,6 +84,10 @@ export interface LevelEntity {
   readonly facing: -1 | 1;
   readonly patrolLeft: number;
   readonly patrolRight: number;
+  readonly variant?: PickupVariant;
+  readonly id?: string;
+  /** Largura da arena em px (0 quando não é `arena`). */
+  readonly spanPx: number;
 }
 
 export interface LevelDef {

@@ -14,6 +14,8 @@
  * de fazer a maior pontuação, não três pontuações separadas.
  */
 
+import type { CheckpointSnapshot } from './checkpoint';
+
 export interface RunState {
   levelId: string;
   lives: number;
@@ -21,6 +23,8 @@ export interface RunState {
   startedAtMs: number;
   /** Fica `true` no game over; nenhuma vida é descontada duas vezes. */
   over: boolean;
+  /** Último checkpoint tocado. `null` = a fase recomeça do início. */
+  checkpoint: CheckpointSnapshot | null;
 }
 
 /** O que fazer depois de perder uma vida. */
@@ -40,6 +44,7 @@ export function createRunState(levelId: string, nowMs: number): RunState {
     score: 0,
     startedAtMs: nowMs,
     over: false,
+    checkpoint: null,
   };
 }
 
@@ -48,6 +53,9 @@ export function resetRun(run: RunState, nowMs: number): void {
   run.score = 0;
   run.startedAtMs = nowMs;
   run.over = false;
+  // O checkpoint é da tentativa: recomeçar depois do game over é recomeçar a
+  // fase do zero, senão o fim de jogo não custaria progresso nenhum.
+  run.checkpoint = null;
 }
 
 export interface ScoreResult {

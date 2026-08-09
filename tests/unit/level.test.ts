@@ -1,8 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { findExit, ONE_WAY_TILES, parseLevel, TILE } from '../../src/core/level/parse';
+import {
+  findArena,
+  findBoss,
+  findCheckpoints,
+  findExit,
+  ONE_WAY_TILES,
+  parseLevel,
+  TILE,
+} from '../../src/core/level/parse';
 import { LevelParseError, type LevelSource } from '../../src/core/level/schema';
 import { LEVEL_01 } from '../../src/core/level/levels/level-01';
-import { PLAYER } from '../../src/core/config/tuning';
+import { PLAYER, WORLD } from '../../src/core/config/tuning';
 
 function source(rows: string[], partial: Partial<LevelSource> = {}): LevelSource {
   return {
@@ -75,7 +83,7 @@ describe('parse de fase — validação', () => {
           ],
         }),
       ),
-    ).toThrow(/saídas/);
+    ).toThrow(/entidades "exit"/);
   });
 
   /**
@@ -93,9 +101,9 @@ describe('fase 1 — invariantes de level design', () => {
   const def = parseLevel(LEVEL_01);
 
   it('é retangular e tem o tamanho esperado', () => {
-    expect(def.width).toBe(132);
+    expect(def.width).toBe(180);
     expect(def.height).toBe(30);
-    expect(def.tiles).toHaveLength(132 * 30);
+    expect(def.tiles).toHaveLength(180 * 30);
   });
 
   it('o spawn fica sobre chão sólido, não no vazio', () => {
@@ -256,6 +264,80 @@ describe('fase 1 — invariantes de level design', () => {
         .map((e) => e.x),
     );
     expect(exit.x).toBeGreaterThan(lastEnemyX);
+  });
+
+  /**
+   * A fase precisa ser jogável do início ao fim, e o roteiro do plano (§12)
+   * exige checkpoint antes do trecho difícil e arena de boss no fim.
+   */
+  it('tem checkpoints, e o último vem antes da arena', () => {
+    const checkpoints = findCheckpoints(def);
+    const arena = findArena(def);
+
+    expect(checkpoints.length).toBeGreaterThanOrEqual(2);
+    expect(arena).not.toBeNull();
+    // Sem um checkpoint antes da arena, perder para o boss custaria a fase toda.
+    expect(checkpoints[checkpoints.length - 1]!.x).toBeLessThan(arena!.x);
+  });
+
+  it('todo checkpoint tem apoio sob os pés', () => {
+    const at = (x: number, y: number): number => def.tiles[y * def.width + x] ?? 0;
+    const floating = findCheckpoints(def).filter(
+      (c) =>
+        !def.solidTiles.has(at(Math.floor(c.x / def.tileWidth), Math.floor(c.y / def.tileHeight))),
+    );
+    expect(floating).toEqual([]);
+  });
+
+  /**
+   * A arena precisa caber na viewport: mais estreita e a câmera mostraria o
+   * lado de fora; mais larga e o boss sairia de quadro durante a investida.
+   */
+  it('a arena tem exatamente a largura de uma viewport, e o boss está dentro', () => {
+    const arena = findArena(def)!;
+    const boss = findBoss(def);
+
+    expect(arena.spanPx).toBeGreaterThanOrEqual(WORLD.widthMin);
+    expect(boss).not.toBeNull();
+    expect(boss!.x).toBeGreaterThan(arena.x);
+    expect(boss!.x).toBeLessThan(arena.x + arena.spanPx);
+  });
+
+  it('a saída fica depois da arena — não dá para pular o boss', () => {
+    const arena = findArena(def)!;
+    expect(findExit(def).x).toBeGreaterThan(arena.x + arena.spanPx);
+  });
+
+  /**
+   * As plataformas da arena são o contra-ataque da investida: o jogador sobe
+   * nelas e o arado passa por baixo. Se ficarem baixas demais isso deixa de
+   * funcionar, e a investida vira dano garantido.
+   */
+  it('a arena tem plataformas altas o bastante para escapar da investida', () => {
+    const arena = findArena(def)!;
+    const groundRow = Math.floor(arena.y / def.tileHeight);
+    const at = (x: number, y: number): number => def.tiles[y * def.width + x] ?? 0;
+
+    let platforms = 0;
+    for (
+      let x = Math.floor(arena.x / def.tileWidth);
+      x < (arena.x + arena.spanPx) / def.tileWidth;
+      x++
+    ) {
+      for (let y = 0; y < groundRow; y++) {
+        if (!ONE_WAY_TILES.has(at(x, y))) continue;
+        // O arado tem 40 px; a plataforma precisa passar disso com folga.
+        expect((groundRow - y) * def.tileHeight).toBeGreaterThan(40);
+        platforms++;
+      }
+    }
+    expect(platforms).toBeGreaterThanOrEqual(6);
+  });
+
+  it('entrega metralhadora e escopeta ao longo do caminho', () => {
+    const variants = def.entities.filter((e) => e.type === 'pickup').map((e) => e.variant);
+    expect(variants).toContain('weapon_mg');
+    expect(variants).toContain('weapon_sg');
   });
 
   it('declara as camadas de parallax que o cenário espera', () => {

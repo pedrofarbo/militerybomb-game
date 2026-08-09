@@ -221,6 +221,52 @@ body {
   }
 }
 
+/* ────────────────────────── Barra do boss ───────────────────────── */
+
+.boss-bar {
+  align-self: center;
+  width: min(58%, 340px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.boss-bar[hidden] {
+  display: none;
+}
+
+.boss-bar__name {
+  font-size: 10px;
+  letter-spacing: 0.26em;
+  color: var(--met5);
+  text-shadow: 0 1px 0 var(--ink);
+}
+
+.boss-bar__track {
+  width: 100%;
+  height: 9px;
+  background: var(--con1);
+  border: 1px solid var(--ink);
+  box-shadow: inset 0 1px 0 rgba(0, 0, 0, 0.55);
+}
+
+.boss-bar__fill {
+  display: block;
+  height: 100%;
+  width: 100%;
+  background: var(--haz);
+  /* Transição curta: a barra precisa acompanhar o tiro, não deslizar depois. */
+  transition: width 120ms linear;
+}
+
+/* Fase 2: a barra muda de cor junto com o boss — a mesma informação em dois
+   lugares, porque durante a luta o jogador está olhando para o boss. */
+.boss-bar--phase2 .boss-bar__fill {
+  background: var(--sig3);
+  box-shadow: inset 0 -2px 0 rgba(217, 116, 52, 0.9);
+}
+
 /* ─────────────────── Fim de fase / fim de jogo ───────────────────── */
 
 /* Ancorado ao CANVAS (`.ui-root`), não à viewport: num embed o painel cobre

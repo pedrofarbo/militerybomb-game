@@ -34,6 +34,12 @@ export interface GameEventMap {
   'run:restartRequested': { from: 'game-over' | 'level-complete' };
   'enemy:killed': { typeId: string; x: number; y: number };
   'checkpoint:reached': { id: string };
+  'pickup:taken': { variant: string };
+  /** A arena fechou e a luta começou. `name` alimenta a barra de boss. */
+  'boss:started': { name: string };
+  'boss:health': { fraction: number; phase: 1 | 2 };
+  'boss:phase': { phase: 1 | 2 };
+  'boss:defeated': { score: number };
   'level:complete': { levelId: string; timeMs: number; score: number };
   'quality:changed': { level: QualityLevel };
   'input:deviceChanged': { device: 'keyboard' | 'gamepad' | 'touch' };

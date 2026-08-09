@@ -25,6 +25,12 @@ export interface CameraViewport {
 }
 
 export interface CameraBounds {
+  /**
+   * Borda esquerda do trecho onde a câmera pode andar. Quase sempre 0 — deixa
+   * de ser em arenas de boss, onde a luta prende a câmera a um pedaço da fase.
+   */
+  left: number;
+  /** Largura do trecho, a partir de `left`. */
   width: number;
   height: number;
 }
@@ -109,10 +115,14 @@ export function stepCamera(
   s.x = damp(s.x, desiredX, CAMERA.followLerpX * 60, dtMs);
   s.y = damp(s.y, desiredY, CAMERA.followLerpY * 60, dtMs);
 
-  /* Limites de mundo. Se a fase for menor que a viewport, centraliza. */
+  /* Limites de mundo. Se o trecho for menor que a viewport, centraliza. */
   const halfW = viewport.width / 2;
   const halfH = viewport.height / 2;
-  s.x = bounds.width <= viewport.width ? bounds.width / 2 : clamp(s.x, halfW, bounds.width - halfW);
+  const right = bounds.left + bounds.width;
+  s.x =
+    bounds.width <= viewport.width
+      ? bounds.left + bounds.width / 2
+      : clamp(s.x, bounds.left + halfW, right - halfW);
   s.y =
     bounds.height <= viewport.height ? bounds.height / 2 : clamp(s.y, halfH, bounds.height - halfH);
 

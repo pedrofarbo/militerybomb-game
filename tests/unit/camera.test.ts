@@ -8,7 +8,7 @@ import {
 import { CAMERA } from '../../src/core/config/tuning';
 
 const VIEWPORT = { width: 640, height: 360 };
-const BOUNDS = { width: 1920, height: 384 };
+const BOUNDS = { left: 0, width: 1920, height: 384 };
 const STEP = 1000 / 60;
 
 function target(partial: Partial<CameraTarget> = {}): CameraTarget {
@@ -105,7 +105,7 @@ describe('câmera — limites', () => {
 
   it('centraliza quando a fase é menor que a viewport', () => {
     const s = createCameraState(0, 0);
-    stepCamera(s, target(), VIEWPORT, { width: 320, height: 200 }, STEP, 1);
+    stepCamera(s, target(), VIEWPORT, { left: 0, width: 320, height: 200 }, STEP, 1);
     expect(s.x).toBe(160);
     expect(s.y).toBe(100);
   });

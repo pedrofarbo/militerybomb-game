@@ -6,14 +6,19 @@
  * que vazam a cada spawn. Com um único arquivo, a matriz de colisão vira algo
  * que dá para LER de uma vez e conferir.
  *
- *                    tiles   player  inimigo  destrutível
- *   player            ▣        —        ◇         ▣
- *   inimigo           ▣        ◇        —         ▣
- *   tiro do player    ▣        —        ◇         ◇
- *   tiro do inimigo   ▣        ◇        ▣         —
- *   granada           ▣        —        —         —
+ *                    tiles   player  inimigo  destrutível  boss
+ *   player            ▣        —        ◇         ▣          ✗
+ *   inimigo           ▣        ◇        —         ▣          —
+ *   tiro do player    ▣        —        ◇         ◇          ◇
+ *   tiro do inimigo   ▣        ◇        ▣         —          —
+ *   granada           ▣        —        —         —          —
  *
  *   ▣ colisão física   ◇ sobreposição (só dispara evento)
+ *   ✗ resolvido À MÃO na cena, não aqui — ver `LevelScene.tickBossContact`.
+ *     A hurtbox do boss cobre o guindaste inteiro (para o jogador conseguir
+ *     acertá-lo), mas só o arado, na altura do chão, machuca no contato. Uma
+ *     única caixa não consegue ser as duas coisas, e é a diferença entre a
+ *     investida ser desviável em cima das plataformas ou não.
  */
 
 import type Phaser from 'phaser';
@@ -40,6 +45,8 @@ export interface CollisionParticipants {
   playerShots: Phaser.GameObjects.Group;
   enemyShots: Phaser.GameObjects.Group;
   grenades: Phaser.GameObjects.Group;
+  /** Carcaça e núcleo do boss. Vazio nas fases sem boss. */
+  bossParts: Phaser.GameObjects.Group;
 }
 
 export interface CollisionHandlers {
@@ -54,6 +61,7 @@ export interface CollisionHandlers {
     shot: Phaser.GameObjects.GameObject,
     target: Phaser.GameObjects.GameObject,
   ): void;
+  playerShotHitBoss(shot: Phaser.GameObjects.GameObject, part: Phaser.GameObjects.GameObject): void;
   enemyShotHitTile(shot: Phaser.GameObjects.GameObject): void;
   enemyShotHitPlayer(shot: Phaser.GameObjects.GameObject): void;
   playerTouchedEnemy(enemy: Phaser.GameObjects.GameObject): void;
@@ -85,6 +93,9 @@ export function registerCollisions(
   );
   physics.add.overlap(p.playerShots, p.destructibles, (shot, target) =>
     h.playerShotHitDestructible(asGameObject(shot), asGameObject(target)),
+  );
+  physics.add.overlap(p.playerShots, p.bossParts, (shot, part) =>
+    h.playerShotHitBoss(asGameObject(shot), asGameObject(part)),
   );
 
   /* ── Tiros dos inimigos ──

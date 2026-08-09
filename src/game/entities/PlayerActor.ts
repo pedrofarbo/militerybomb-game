@@ -38,6 +38,7 @@ import {
   type HealthState,
 } from '../../core/combat/health';
 import { GRENADE } from '../../core/combat/explosives';
+import type { Loadout } from '../../core/progression/checkpoint';
 import type { Aabb } from '../../core/combat/overlap';
 import { ART_METRICS } from '../../assets/manifest';
 import { LOCKED_ANIMS } from '../anim/AnimationRegistry';
@@ -223,8 +224,66 @@ export class PlayerActor {
     return this.grenades;
   }
 
-  addGrenades(amount: number): void {
+  /** Devolve `false` se já estava cheio — a cena não consome o item nesse caso. */
+  addGrenades(amount: number): boolean {
+    const before = this.grenades;
     this.grenades = Math.min(GRENADE.maxCount, this.grenades + amount);
+    if (this.grenades === before) return false;
+    this.callbacks.onGrenadesChanged(this.grenades);
+    return true;
+  }
+
+  /* ──────────────────── Itens e estado da tentativa ─────────────── */
+
+  /**
+   * Equipa uma arma. Reabastece se o jogador já a tinha — pegar a mesma arma
+   * de novo precisa valer alguma coisa, senão o item vira decoração.
+   */
+  equipWeapon(weaponId: WeaponId): void {
+    const def = WEAPONS[weaponId];
+    if (this.weapon.weaponId === weaponId && this.weapon.ammo !== 'infinite') {
+      this.weapon.ammo = def.ammoMax === 'infinite' ? 'infinite' : def.ammoMax;
+    } else {
+      this.weapon = createWeaponState(def);
+    }
+    this.callbacks.onWeaponChanged(weaponId, this.weapon.ammo);
+  }
+
+  /** Munição para a arma ATUAL. Sem efeito na pistola, que é infinita. */
+  addAmmo(fraction: number): boolean {
+    const def = WEAPONS[this.weapon.weaponId];
+    if (def.ammoMax === 'infinite' || this.weapon.ammo === 'infinite') return false;
+    const before = this.weapon.ammo;
+    this.weapon.ammo = Math.min(def.ammoMax, this.weapon.ammo + Math.ceil(def.ammoMax * fraction));
+    if (this.weapon.ammo === before) return false;
+    this.callbacks.onWeaponChanged(this.weapon.weaponId, this.weapon.ammo);
+    return true;
+  }
+
+  /** Devolve `false` se já estava com a vida cheia — a cena não consome o item. */
+  heal(amount: number): boolean {
+    if (this.health.current >= this.health.max) return false;
+    this.health.current = Math.min(this.health.max, this.health.current + amount);
+    this.state.health = this.health.current;
+    this.callbacks.onHealthChanged(this.health.current, this.health.max);
+    return true;
+  }
+
+  /** Com o que o jogador está — o que o checkpoint guarda. */
+  get loadout(): Loadout {
+    return {
+      weaponId: this.weapon.weaponId,
+      ammo: this.weapon.ammo,
+      grenades: this.grenades,
+    };
+  }
+
+  /** Restaura o estado guardado num checkpoint. */
+  applyLoadout(loadout: Readonly<Loadout>): void {
+    this.weapon = createWeaponState(WEAPONS[loadout.weaponId]);
+    this.weapon.ammo = loadout.ammo;
+    this.grenades = loadout.grenades;
+    this.callbacks.onWeaponChanged(loadout.weaponId, this.weapon.ammo);
     this.callbacks.onGrenadesChanged(this.grenades);
   }
 

@@ -7,7 +7,13 @@
  * "esqueci de trocar o tile da quina".
  */
 
-import { LevelParseError, type LevelDef, type LevelEntity, type LevelSource } from './schema';
+import {
+  LevelParseError,
+  PICKUP_VARIANTS,
+  type LevelDef,
+  type LevelEntity,
+  type LevelSource,
+} from './schema';
 
 /** Índices do tileset. Espelham `public/assets/levels/tileset.json`. */
 export const TILE = {
@@ -135,20 +141,56 @@ export function findExit(def: LevelDef): LevelEntity {
   return exits[0]!;
 }
 
+/** Todos os checkpoints, do início para o fim da fase. */
+export function findCheckpoints(def: LevelDef): LevelEntity[] {
+  return def.entities.filter((e) => e.type === 'checkpoint').sort((a, b) => a.x - b.x);
+}
+
+/** A arena de boss, se a fase tiver uma. */
+export function findArena(def: LevelDef): LevelEntity | null {
+  return def.entities.find((e) => e.type === 'arena') ?? null;
+}
+
+export function findBoss(def: LevelDef): LevelEntity | null {
+  return def.entities.find((e) => e.type === 'boss') ?? null;
+}
+
 function parseEntities(
   src: LevelSource,
   width: number,
   height: number,
   tiles: readonly number[],
 ): LevelEntity[] {
-  const exits = (src.entities ?? []).filter((e) => e.type === 'exit').length;
-  if (exits > 1) throw new LevelParseError(`${exits} saídas declaradas; deve haver no máximo 1`);
+  const source = src.entities ?? [];
+  countAtMostOne(source, 'exit');
+  countAtMostOne(source, 'arena');
+  countAtMostOne(source, 'boss');
 
-  return (src.entities ?? []).map((entity, index) => {
+  /* Um checkpoint sem id não pode ser salvo, e dois com o mesmo id fazem o
+     jogador reaparecer no lugar errado — os dois só apareceriam jogando. */
+  const checkpointIds = new Set<string>();
+  for (const entity of source) {
+    if (entity.type !== 'checkpoint') continue;
+    if (!entity.id) throw new LevelParseError(`checkpoint em ${entity.tileX} sem \`id\``);
+    if (checkpointIds.has(entity.id)) {
+      throw new LevelParseError(`checkpoint com id duplicado: "${entity.id}"`);
+    }
+    checkpointIds.add(entity.id);
+  }
+
+  return source.map((entity, index) => {
     if (entity.tileX < 0 || entity.tileY < 0 || entity.tileX >= width || entity.tileY >= height) {
       throw new LevelParseError(
         `entidade ${index} (${entity.type}) em (${entity.tileX}, ${entity.tileY}) está fora do mapa`,
       );
+    }
+    if (entity.type === 'pickup' && !PICKUP_VARIANTS.has(entity.variant ?? '')) {
+      throw new LevelParseError(
+        `pickup ${index} tem variante inválida: "${String(entity.variant)}"`,
+      );
+    }
+    if (entity.type === 'arena' && !(entity.spanTiles && entity.spanTiles > 0)) {
+      throw new LevelParseError(`arena ${index} precisa de \`spanTiles\` maior que zero`);
     }
     // Posicionar uma entidade dentro de parede é erro de autoria, e sem esta
     // checagem ela aparece presa no cenário só quando alguém joga a fase.
@@ -169,8 +211,19 @@ function parseEntities(
       facing: entity.facing ?? 1,
       patrolLeft: patrolPx > 0 ? x - patrolPx : 0,
       patrolRight: patrolPx > 0 ? x + patrolPx : 0,
+      variant: entity.variant,
+      id: entity.id,
+      spanPx: (entity.spanTiles ?? 0) * src.tileWidth,
     };
   });
+}
+
+function countAtMostOne(
+  source: readonly { readonly type: string }[],
+  type: 'exit' | 'arena' | 'boss',
+): void {
+  const count = source.filter((e) => e.type === type).length;
+  if (count > 1) throw new LevelParseError(`${count} entidades "${type}"; deve haver no máximo 1`);
 }
 
 type Sampler = (x: number, y: number) => string;

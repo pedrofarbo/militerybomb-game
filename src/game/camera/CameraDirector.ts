@@ -18,7 +18,7 @@ import {
 export class CameraDirector {
   private readonly state: CameraState;
   private readonly target: CameraTarget = { x: 0, y: 0, facing: 1, vx: 0, grounded: true };
-  private readonly bounds = { width: 0, height: 0 };
+  private readonly bounds = { left: 0, width: 0, height: 0 };
   private readonly viewport = { width: 0, height: 0 };
 
   /** 0..1, vindo das Settings (acessibilidade). */
@@ -33,8 +33,20 @@ export class CameraDirector {
   }
 
   setBounds(width: number, height: number): void {
+    this.bounds.left = 0;
     this.bounds.width = width;
     this.bounds.height = height;
+  }
+
+  /**
+   * Prende a câmera a um trecho da fase (arena de boss) e a solta depois.
+   *
+   * Sem isto, o jogador poderia empurrar a câmera para fora da arena durante a
+   * luta — e o boss sairia de quadro justamente quando ele mais importa.
+   */
+  setLimits(left: number, right: number): void {
+    this.bounds.left = left;
+    this.bounds.width = Math.max(0, right - left);
   }
 
   shake(trauma: number): void {
