@@ -38,12 +38,20 @@ export interface GameEventMap {
   /** A arena fechou e a luta começou. `name` alimenta a barra de boss. */
   'boss:started': { name: string };
   'boss:health': { fraction: number; phase: 1 | 2 };
+  /** Acerto no boss. `onCore` separa blindagem de ponto fraco — é a lição da luta. */
+  'boss:hit': { onCore: boolean; x: number; y: number };
+  /** Antecipação de ataque começou. O áudio usa para avisar antes do golpe. */
+  'boss:telegraph': { pattern: string };
+  /** Ventoinhas abriram: janela de dano. */
+  'boss:vent': { phase: 1 | 2 };
   'boss:phase': { phase: 1 | 2 };
   'boss:defeated': { score: number };
   'level:complete': { levelId: string; timeMs: number; score: number };
   'quality:changed': { level: QualityLevel };
   'input:deviceChanged': { device: 'keyboard' | 'gamepad' | 'touch' };
   'game:paused': { paused: boolean };
+  /** COMANDO da UI: abrir o menu de pausa. Ver `run:restartRequested`. */
+  'game:pauseRequested': Record<string, never>;
 }
 
 export type GameEventKey = keyof GameEventMap;

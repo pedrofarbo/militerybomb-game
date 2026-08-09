@@ -22,6 +22,7 @@ export class UiRoot {
   private readonly outcomeTitle: HTMLElement;
   private readonly outcomeDetail: HTMLElement;
   private readonly outcomeButton: HTMLButtonElement;
+  private readonly pauseButton: HTMLButtonElement;
   private readonly bossBar: HTMLElement;
   private readonly bossFill: HTMLElement;
   private readonly bossName: HTMLElement;
@@ -50,11 +51,20 @@ export class UiRoot {
 
     const topRight = document.createElement('div');
     topRight.className = 'hud-block hud-block--right';
+    /* Botão de pausa no HUD. No celular NÃO existe tecla Esc — sem ele, um
+       jogador de touch simplesmente não consegue pausar, e "não consegue
+       parar de jogar" não é elogio. */
+    this.pauseButton = document.createElement('button');
+    this.pauseButton.type = 'button';
+    this.pauseButton.className = 'hud-pause';
+    this.pauseButton.textContent = '❚❚';
+    this.pauseButton.setAttribute('aria-label', 'Pausar');
+    this.pauseButton.addEventListener('click', () => bus.emit('game:pauseRequested', {}));
     this.hudScore = document.createElement('div');
     this.hudScore.className = 'hud-score';
     this.hudLives = document.createElement('div');
     this.hudLives.className = 'hud-lives';
-    topRight.append(this.hudScore, this.hudLives);
+    topRight.append(this.pauseButton, this.hudScore, this.hudLives);
 
     const topRow = document.createElement('div');
     topRow.className = 'hud-row';

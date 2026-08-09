@@ -39,6 +39,8 @@ export interface BossCallbacks {
   onShake(trauma: number): void;
   onHealthChanged(current: number, max: number, phase: 1 | 2): void;
   onPhaseChanged(phase: 1 | 2): void;
+  /** Mudou de estado: a cena traduz em som (antecipação, respiro). */
+  onStateChanged(state: BossState, phase: 1 | 2): void;
   onDied(boss: BossActor): void;
   playFx(key: string, x: number, y: number): void;
 }
@@ -86,6 +88,7 @@ export class BossActor {
   private currentAnim = '';
   private currentCoreAnim = '';
   private lastPhase: 1 | 2 = 1;
+  private lastState: BossState = BossState.Dormant;
   private deathTimerMs = 0;
   private deathFxTimerMs = 0;
   private deathFxIndex = 0;
@@ -242,6 +245,11 @@ export class BossActor {
       this.callbacks.playFx('fx.explosion.medium', out.slamAt, this.sprite.y - 16);
     }
     if (out.shake > 0) this.callbacks.onShake(out.shake);
+
+    if (out.state !== this.lastState) {
+      this.lastState = out.state;
+      this.callbacks.onStateChanged(out.state, out.phase);
+    }
 
     if (out.phase !== this.lastPhase) {
       this.lastPhase = out.phase;

@@ -8,6 +8,7 @@
 
 import Phaser from 'phaser';
 import { ATLASES, IMAGES } from '../../assets/manifest';
+import { AUDIO } from '../../assets/audio-manifest.generated';
 import { registerAnimations } from '../anim/AnimationRegistry';
 
 export class PreloadScene extends Phaser.Scene {
@@ -27,6 +28,14 @@ export class PreloadScene extends Phaser.Scene {
     }
     for (const [key, path] of Object.entries(IMAGES)) {
       this.load.image(key, path);
+    }
+
+    /* Áudio embutido chega como data-URI num global, pelo mesmo motivo dos
+       atlas: uma página autocontida não pode fazer requisição nenhuma. */
+    const inlineAudio = (globalThis as { __REDLINE_AUDIO_DATA__?: Record<string, string> })
+      .__REDLINE_AUDIO_DATA__;
+    for (const [key, asset] of Object.entries(AUDIO)) {
+      this.load.audio(key, inlineAudio?.[key] ?? asset.file);
     }
 
     const bar = this.add.rectangle(0, 0, 1, 4, 0xe8bb28).setOrigin(0, 0.5);

@@ -3,11 +3,12 @@
 Jogo 2D de ação lateral (run & gun) para browser, celular e tablet.
 Phaser 4 + TypeScript + Vite. Single-player.
 
-> **Estado:** Fases 0 (arquitetura), 1 (player) e 2 (combate) concluídas.
-> A fase tem 11 inimigos de 3 tipos, 9 objetos destrutíveis com explosão em
-> cadeia, granadas, dano nos dois sentidos, pontuação, **3 vidas** e um
-> **portão de extração** que encerra a fase.
-> Falta a Fase 3: checkpoint, mini-boss, menus e áudio.
+> **Estado:** Fases 0 (arquitetura), 1 (player), 2 (combate) e 3 (vertical
+> slice) concluídas. A Fase 1 é jogável do desembarque à extração: 11 inimigos
+> de 3 tipos, destrutíveis com explosão em cadeia, granadas, itens, 2
+> checkpoints, 3 vidas, o mini-boss **Estivador** em arena travada, menus,
+> áudio e música.
+> Falta a Fase 4 (mobile), a 5 (arte e som finais) e a 6 (produção).
 
 ## Começando
 
@@ -28,6 +29,8 @@ Requer Node.js ≥ 22.12.
 | Atirar            | `J` / `Ctrl`    | X / RT        | botão **TIRO** (segurável) |
 | Descer plataforma | `S`/`↓` + pulo  | ↓ + A         | direcional ↓ + **PULO**    |
 | Trocar arma       | `Q` / `Tab`     | LB            | —                          |
+| Granada           | `L`             | B             | botão **GRAN**             |
+| Pausa             | `Esc` / `P`     | Start         | botão **❚❚** no HUD        |
 | Debug             | `` ` ``         | —             | —                          |
 
 `?debug=1` abre o painel de debug direto; `?hitboxes=1` desenha os corpos de
@@ -36,41 +39,53 @@ rejogar o mapa inteiro ao ajustar o fim da fase.
 
 ### Uma tentativa
 
-Três vidas, e uma vida extra a cada 5 000 pontos. Perder uma vida **reinicia a
-fase com os inimigos de volta** — enquanto não existem checkpoints (Fase 3),
-voltar ao início com o mapa já limpo seria andar por um cenário vazio, não
-recomeçar. **A pontuação sobrevive à morte e só zera no fim de jogo**: é isso
-que dá sentido a ter três vidas — três tentativas de fazer UMA pontuação.
-A fase termina no portão de extração, no fim do mapa.
+Três vidas, e uma vida extra a cada 5 000 pontos. Perder uma vida **recarrega a
+fase com os inimigos de volta**, no último checkpoint tocado — com a arma e as
+granadas que você tinha ao tocá-lo. **A pontuação sobrevive à morte e só zera
+no fim de jogo**: é isso que dá sentido a ter três vidas — três tentativas de
+fazer UMA pontuação, não três pontuações separadas.
+
+### A luta contra o Estivador
+
+Cruzar a soleira da arena fecha o portão atrás de você e trava a câmera. O
+guindaste tem três padrões, todos com antecipação visível, e o loop da luta é:
+
+    padrão (você desvia) → respiro (as ventoinhas abrem) → você acerta
+
+Fechado, a blindagem come 75% do dano. Aberto, tudo entra — e acertar o núcleo
+dobra. O ponto fraco é uma **janela de tempo**, não um pixel: quem só metralha
+ainda ganha, devagar. As duas plataformas da arena ficam 48 px acima do chão e
+o arado do boss tem 40 px — subir nelas é como se escapa da investida.
 
 ## Scripts
 
-| Comando                    | O que faz                                                |
-| -------------------------- | -------------------------------------------------------- |
-| `npm run dev`              | servidor de desenvolvimento com HMR                      |
-| `npm run build`            | typecheck + build estática em `dist/`                    |
-| `npm test`                 | testes unitários da camada `core` (Vitest)               |
-| `npm run test:e2e`         | smoke de browser contra a build de produção (Playwright) |
-| `npm run lint`             | ESLint, incluindo a fronteira `core` ↛ Phaser            |
-| `npm run ci`               | tudo acima, na ordem do CI                               |
-| `npm run art:placeholders` | regenera todos os assets placeholder                     |
-| `npm run build:standalone` | empacota o jogo num HTML único, sem requisições          |
+| Comando                      | O que faz                                                |
+| ---------------------------- | -------------------------------------------------------- |
+| `npm run dev`                | servidor de desenvolvimento com HMR                      |
+| `npm run build`              | typecheck + build estática em `dist/`                    |
+| `npm test`                   | testes unitários da camada `core` (Vitest)               |
+| `npm run test:e2e`           | smoke de browser contra a build de produção (Playwright) |
+| `npm run lint`               | ESLint, incluindo a fronteira `core` ↛ Phaser            |
+| `npm run ci`                 | tudo acima, na ordem do CI                               |
+| `npm run art:placeholders`   | regenera todos os assets placeholder                     |
+| `npm run audio:placeholders` | regenera todo o áudio placeholder                        |
+| `npm run build:standalone`   | empacota o jogo num HTML único, sem requisições          |
 
 ## Arquitetura em uma tela
 
 ```
 src/
 ├── core/      TypeScript PURO — zero Phaser, zero DOM. Todas as regras.
-│              movimento, mira, armas, câmera, fases, save, input, animação
-├── game/      Phaser: scenes, sprites, corpos Arcade, pools, FX, devices
-├── ui/        DOM: HUD, controles touch, aviso de orientação
+│              movimento, mira, armas, câmera, fases, boss, save, input, anim
+├── game/      Phaser: scenes, sprites, corpos Arcade, pools, FX, áudio, devices
+├── ui/        DOM: HUD, menus, controles touch, aviso de orientação
 ├── platform/  adaptadores (armazenamento, detecção de dispositivo)
 └── assets/    manifesto tipado (chaves lógicas → arquivos)
 ```
 
 A fronteira `core` ↛ `game` é **aplicada por lint**, não por convenção: um
 import de Phaser dentro de `src/core` quebra o CI. É isso que mantém a
-simulação testável em Node — os 147 testes unitários rodam em ~1 s, sem
+simulação testável em Node — os 167 testes unitários rodam em ~1 s, sem
 canvas, sem WebGL. A IA dos inimigos inteira é testada assim: "soldado vê o
 jogador → telegrafa antes de atirar" é um teste unitário, não um playtest.
 
@@ -97,19 +112,24 @@ Detalhes e justificativas: [`docs/TECHNICAL_PLAN.md`](docs/TECHNICAL_PLAN.md).
 
 ## Assets placeholder
 
-Toda a arte atual é **temporária**, gerada por código de forma determinística
-(`npm run art:placeholders`, sem dependências). Ela obedece à mesma
-especificação exigida da arte final — mesmos tamanhos de frame, pivôs,
-contagens de frame e a paleta de 48 cores. **Substituir por arte definitiva é
-trocar arquivos, sem tocar em código de gameplay.**
+Toda a arte e todo o áudio atuais são **temporários**, gerados por código de
+forma determinística (`npm run art:placeholders`, `npm run audio:placeholders`,
+sem dependências). A arte obedece à mesma especificação exigida da arte final —
+mesmos tamanhos de frame, pivôs, contagens de frame e a paleta de 48 cores.
+**Substituir por definitivo é trocar arquivos, sem tocar em código de
+gameplay.**
 
-Rodar o gerador duas vezes produz bytes idênticos, e o CI falha se o commit
-sair de sincronia com o gerador.
+O áudio sai em WAV: sintetizar OGG exigiria um encoder Vorbis, ou seja uma
+dependência para produzir algo temporário por definição. O som final deve vir
+em `.ogg` + `.m4a` (plano §18), e aí o manifesto ganha as duas extensões.
+
+Rodar os geradores duas vezes produz bytes idênticos, e o CI falha se o commit
+sair de sincronia com eles.
 
 ## Build autocontida
 
 `npm run build:standalone` gera `dist-standalone/redline.html`: o jogo inteiro
-num arquivo de ~1,5 MB, com JS e CSS inline e todas as imagens como data-URI.
+num arquivo de ~3 MB, com JS e CSS inline e todas as imagens e sons como data-URI.
 **Zero requisições de rede** — abre por `file://`, serve para anexar, hospedar
 em qualquer lugar ou publicar sob CSP restrita.
 
@@ -127,9 +147,11 @@ Resolução lógica **640×360** com altura fixa e largura elástica (640–800)
 renderizada 1:1 e ampliada por CSS. Um aparelho 1080p desenha ~288 mil pixels
 por frame em vez de 2 milhões.
 
-Build atual: **~383 KB gzip** no total (Phaser 358 KB + jogo 23 KB + CSS 1,6 KB).
+Build atual: **~390 KB gzip** de código (Phaser 358 KB + jogo 28 KB + CSS 2 KB),
+mais 1,1 MB de áudio placeholder em WAV — que o som final em `.ogg` reduz a uma
+fração disso.
 
-Testes: **147 unitários** (~1 s, sem browser) e **36 de browser** (desktop e
+Testes: **167 unitários** (~1 s, sem browser) e **50 de browser** (desktop e
 mobile landscape, contra a build de produção).
 
 ## Originalidade

@@ -20,6 +20,20 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = `${ROOT}/dist`;
+
+/* O manifesto de áudio é gerado como TypeScript, mas o único conteúdo que
+   interessa aqui são pares chave → arquivo. Lê-lo com regex evita arrastar um
+   transpilador para dentro da ferramenta de build. */
+const AUDIO_MANIFEST = Object.fromEntries(
+  [
+    ...readFileSync(`${ROOT}/src/assets/audio-manifest.generated.ts`, 'utf8').matchAll(
+      /'([\w.]+)': \{ file: '([^']+)'/g,
+    ),
+  ].map(([, key, file]) => [key, { file }]),
+);
+if (Object.keys(AUDIO_MANIFEST).length === 0) {
+  throw new Error('manifesto de áudio vazio — o gerador rodou?');
+}
 const OUT_DIR = `${ROOT}/dist-standalone`;
 const OUT_FILE = `${OUT_DIR}/redline.html`;
 
@@ -81,7 +95,20 @@ for (const path of images) {
   if (replaced === 0) throw new Error(`caminho não encontrado no bundle: ${path}`);
 }
 
-/* ── 3. JSON dos atlas como objeto, num global ── */
+/* ── 3. Áudio como data-URI num global ──
+   Não dá para substituir os caminhos no bundle como se faz com os PNG: o
+   manifesto de áudio é um objeto, e o loader recebe a chave, não a string
+   literal. Um mapa chave → data-URI resolve, e o PreloadScene consulta esse
+   global antes de cair no caminho de arquivo. */
+const audioData = {};
+let audioBytes = 0;
+for (const [key, asset] of Object.entries(AUDIO_MANIFEST)) {
+  const uri = dataUri(asset.file, 'audio/wav');
+  audioData[key] = uri;
+  audioBytes += uri.length;
+}
+
+/* ── 4. JSON dos atlas como objeto, num global ── */
 const atlasKeys = ['characters', 'enemies', 'boss', 'fx', 'env', 'ui'];
 
 /* Nenhum caminho de asset pode sobreviver, porque cada um que sobrar vira uma
@@ -90,9 +117,14 @@ const atlasKeys = ['characters', 'enemies', 'boss', 'fx', 'env', 'ui'];
    jogo rodar servido normalmente, e ficam inertes porque o global abaixo é
    sempre injetado. Listá-los nominalmente mantém a checagem estrita: qualquer
    caminho novo que apareça no futuro quebra o build em vez de virar 404. */
-const allowedLeftovers = new Set(atlasKeys.map((key) => `assets/atlas/${key}.json`));
+const allowedLeftovers = new Set([
+  ...atlasKeys.map((key) => `assets/atlas/${key}.json`),
+  // Idem para o áudio: os caminhos continuam no manifesto como fallback de
+  // execução servida, e ficam inertes porque o global é sempre injetado.
+  ...Object.values(AUDIO_MANIFEST).map((asset) => asset.file),
+]);
 const leftovers = [
-  ...new Set([...js.matchAll(/assets\/[\w./-]+\.(png|json)/g)].map((m) => m[0])),
+  ...new Set([...js.matchAll(/assets\/[\w./-]+\.(png|json|wav)/g)].map((m) => m[0])),
 ].filter((path) => !allowedLeftovers.has(path));
 if (leftovers.length > 0) {
   throw new Error(`caminhos de asset não embutidos: ${leftovers.join(', ')}`);
@@ -106,7 +138,7 @@ const atlasData = Object.fromEntries(
 
 /* ────────────────────────────────────────────────────────────── */
 
-function renderBody({ js, atlasData }) {
+function renderBody({ js, atlasData, audioData }) {
   return `    <div class="cabinet">
       <header class="bar">
         <div class="ident">
@@ -158,6 +190,7 @@ function renderBody({ js, atlasData }) {
     </div>
 
     <script>window.__REDLINE_ATLAS_DATA__ = ${JSON.stringify(atlasData)};</script>
+    <script>window.__REDLINE_AUDIO_DATA__ = ${JSON.stringify(audioData)};</script>
     <script type="module">
 ${js}
     </script>
@@ -426,7 +459,7 @@ kbd {
    `redline.html` é um documento completo, para abrir localmente ou hospedar.
    `redline.artifact.html` é o MESMO conteúdo sem <html>/<head>/<body>, porque
    o host de artifact injeta o próprio esqueleto de documento. */
-const body = renderBody({ js, atlasData });
+const body = renderBody({ js, atlasData, audioData });
 const styles = `<style>\n${PAGE_CSS}\n${css}\n${PAGE_OVERRIDES}\n</style>`;
 
 const document = `<!doctype html>
@@ -453,5 +486,8 @@ writeFileSync(`${OUT_DIR}/redline.artifact.html`, fragment);
 const mb = (n) => `${(n / 1024 / 1024).toFixed(2)} MB`;
 console.log(`\n  ${OUT_FILE}`);
 console.log(`  ${OUT_DIR}/redline.artifact.html  (sem invólucro de documento)`);
-console.log(`  ${mb(document.length)} · ${mb(js.length)} de JS · ${mb(inlinedBytes)} de imagem`);
+console.log(
+  `  ${mb(document.length)} · ${mb(js.length)} de JS · ${mb(inlinedBytes)} de imagem` +
+    ` · ${mb(audioBytes)} de áudio`,
+);
 console.log('  zero requisições de rede\n');

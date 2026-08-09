@@ -24,7 +24,10 @@ import {
 import { PreloadScene } from './game/scenes/PreloadScene';
 import { LevelScene, LEVEL_DEPS_KEY } from './game/scenes/LevelScene';
 import { DebugService } from './game/debug/DebugService';
+import { AudioService } from './game/audio/AudioService';
+import { AudioDirector } from './game/audio/AudioDirector';
 import { UiRoot } from './ui/UiRoot';
+import { MenuLayer } from './ui/menus/MenuLayer';
 import { detectDevice, safeLocalStorage } from './platform/device';
 
 async function bootstrap(): Promise<void> {
@@ -37,7 +40,8 @@ async function bootstrap(): Promise<void> {
   const touchSource = createTouchInputSource();
 
   const save = new KeyValueSaveRepository(safeLocalStorage() ?? new MemoryStore());
-  const { settings } = await save.load();
+  const saved = await save.load();
+  const settings = saved.settings;
 
   const ui = new UiRoot(app, bus, touchSource);
   ui.setTouchEnabled(device.hasTouch);
@@ -110,6 +114,20 @@ async function bootstrap(): Promise<void> {
     height: app.clientHeight || window.innerHeight,
   });
 
+  /* ── Quem manda na pausa ──
+     TRÊS coisas podem parar o jogo: o celular em pé, a aba em segundo plano e
+     um menu aberto. Cada uma já tentou controlar a pausa por conta própria, e
+     o resultado foi que qualquer `resize` retomava a fase por baixo do menu de
+     pausa — bastava o ResizeObserver disparar. Agora existe UMA função que
+     olha as três condições e decide; ninguém mais chama `pause`/`resume`. */
+  let portraitBlocked = false;
+  let menuOpen = true; // o jogo abre na tela de título
+
+  const syncLevelRunning = (): void => {
+    const level = game.scene.getScene('level') as LevelScene | null;
+    level?.setSimulationPaused(portraitBlocked || menuOpen || document.hidden);
+  };
+
   const applyScale = (): void => {
     const { width: vw, height: vh } = viewport();
     const size = computeLogicalSize(vw, vh);
@@ -125,12 +143,9 @@ async function bootstrap(): Promise<void> {
     root.style.setProperty('--canvas-width', `${rect.width}px`);
     root.style.setProperty('--canvas-height', `${rect.height}px`);
 
-    const blocked = device.hasTouch && isPortrait(vw, vh);
-    ui.setPortraitBlocked(blocked);
-    const level = game.scene.getScene('level');
-    if (!level) return;
-    if (blocked && level.scene.isActive()) level.scene.pause();
-    else if (!blocked && level.scene.isPaused()) level.scene.resume();
+    portraitBlocked = device.hasTouch && isPortrait(vw, vh);
+    ui.setPortraitBlocked(portraitBlocked);
+    syncLevelRunning();
   };
 
   window.addEventListener('resize', applyScale);
@@ -141,11 +156,8 @@ async function bootstrap(): Promise<void> {
   /* ── Pausa ao perder o foco (também evita áudio tocando em background) ── */
 
   document.addEventListener('visibilitychange', () => {
-    const level = game.scene.getScene('level');
     bus.emit('game:paused', { paused: document.hidden });
-    if (!level) return;
-    if (document.hidden && level.scene.isActive()) level.scene.pause();
-    else if (!document.hidden) applyScale();
+    syncLevelRunning();
   });
 
   /* ── Degradação automática de qualidade ──
@@ -157,9 +169,94 @@ async function bootstrap(): Promise<void> {
     (game.scene.getScene('level') as LevelScene | null)?.setQuality(settings.quality);
   }
 
+  /* ── Áudio ──
+     O serviço nasce mudo: em todo browser moderno o contexto começa suspenso e
+     só um gesto real do usuário o libera. Ligamos os três gestos possíveis e
+     quem chegar primeiro ganha — tentar adivinhar qual deles vem antes é como
+     o áudio acaba não tocando em um aparelho específico. */
+  const audio = new AudioService(game.sound);
+  audio.setVolumes(settings.volumes);
+  audio.setMuted(settings.muted);
+  const audioDirector = new AudioDirector(audio, bus);
+  void audioDirector;
+
+  const unlock = (): void => audio.unlock();
+  for (const event of ['pointerdown', 'keydown', 'touchstart'] as const) {
+    window.addEventListener(event, unlock, { once: false, passive: true });
+  }
+  game.events.on(Phaser.Core.Events.POST_STEP, () => audio.update(performance.now()));
+
+  /* ── Menus ──
+     A cena da fase fica PAUSADA enquanto um menu está aberto. É por isso que o
+     jogo abre no título sem estar rodando por baixo: um boss atacando atrás de
+     um menu é a forma mais rápida de perder uma vida sem ter jogado. */
+  const levelScene = (): Phaser.Scene | null => game.scene.getScene('level');
+
+  const persist = (): void => {
+    void save.save({ ...saved, settings });
+  };
+
+  const closeMenus = (): void => {
+    menus.show('none');
+    menuOpen = false;
+    syncLevelRunning();
+  };
+
+  const menus: MenuLayer = new MenuLayer(app, bus, settings, {
+    onStart: () => {
+      closeMenus();
+      audio.unlock();
+      audio.playMusic('music.level01');
+    },
+    onResume: () => {
+      closeMenus();
+      bus.emit('game:paused', { paused: false });
+    },
+    onRestart: () => {
+      closeMenus();
+      bus.emit('run:restartRequested', { from: 'level-complete' });
+    },
+    onSettingsChanged: (next) => {
+      audio.setVolumes(next.volumes);
+      audio.setMuted(next.muted);
+      (levelScene() as LevelScene | null)?.setShakeIntensity(next.shakeIntensity);
+      if (next.quality !== 'auto') (levelScene() as LevelScene | null)?.setQuality(next.quality);
+      persist();
+    },
+  });
+  /* A fase começa DEPOIS deste ponto: quando os menus são montados o Phaser
+     ainda nem instanciou as cenas, então `pause()` agora não tem em quê pegar.
+     `run:started` é emitido no fim do `create` da fase — é o instante exato em
+  /* A fase começa DEPOIS deste ponto: quando os menus são montados o Phaser
+     ainda nem instanciou as cenas. `run:started` sai no fim do `create` da
+     fase — é o instante exato em que ela passa a existir, e vale também para
+     cada `restart()`. Sem isto o jogo rodava atrás da tela de título e o
+     jogador levava tiro antes de apertar JOGAR. */
+  bus.on('run:started', syncLevelRunning);
+
+  const openPause = (): void => {
+    if (menus.isOpen) return;
+    menus.show('pause');
+    menuOpen = true;
+    syncLevelRunning();
+    bus.emit('game:paused', { paused: true });
+  };
+
+  /* Pausa: `Esc`/`P` no teclado, botão no HUD para o toque. O menu já trata
+     `Esc` para fechar a si mesmo, então aqui só interessa o caminho de ABRIR. */
+  window.addEventListener('keydown', (event) => {
+    if (event.code !== 'Escape' && event.code !== 'KeyP') return;
+    if (menus.isOpen) return;
+    event.preventDefault();
+    openPause();
+  });
+  bus.on('game:pauseRequested', openPause);
+
   debug.register(
     'build',
-    () => `REDLINE · Phaser ${Phaser.VERSION} · ${device.hasTouch ? 'touch' : 'desktop'}`,
+    () =>
+      `REDLINE · Phaser ${Phaser.VERSION} · ${device.hasTouch ? 'touch' : 'desktop'} · ` +
+      `áudio:${audio.isUnlocked ? 'ligado' : 'aguardando gesto'}`,
   );
 }
 

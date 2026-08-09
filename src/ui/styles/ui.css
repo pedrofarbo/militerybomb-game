@@ -446,3 +446,137 @@ body {
   pointer-events: none;
   max-width: 60vw;
 }
+
+/* ──────────────────────────── Menus ─────────────────────────────── */
+
+/* Ancorado ao CANVAS como o resto da UI: num embed o menu cobre o jogo, não a
+   página que o hospeda. */
+.menu-layer {
+  position: fixed;
+  left: var(--canvas-left, 0px);
+  top: var(--canvas-top, 0px);
+  width: var(--canvas-width, 100vw);
+  height: var(--canvas-height, 100vh);
+  z-index: 25;
+  pointer-events: none;
+}
+
+.menu-layer.is-open {
+  pointer-events: auto;
+}
+
+.menu {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 14px;
+  padding: 20px;
+  text-align: center;
+  background: rgba(13, 11, 18, 0.9);
+}
+
+.menu[hidden] {
+  display: none;
+}
+
+.menu__logo {
+  margin: 0;
+  font-size: 44px;
+  letter-spacing: 0.3em;
+  color: var(--haz);
+  /* Sombra dura, sem blur: coerente com pixel art. */
+  text-shadow: 3px 3px 0 var(--ink);
+}
+
+.menu__tagline {
+  margin: 0 0 6px;
+  font-size: 11px;
+  letter-spacing: 0.3em;
+  color: var(--con5, #7d8a9a);
+}
+
+.menu__title {
+  margin: 0 0 4px;
+  font-size: 22px;
+  letter-spacing: 0.28em;
+  color: var(--sig3);
+}
+
+.menu__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(320px, 84vw);
+}
+
+.menu__item {
+  /* 44 px: alvo de toque confortável, e mesma altura do botão de recomeçar. */
+  min-height: 44px;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  color: var(--met5);
+  background: rgba(35, 39, 46, 0.85);
+  border: 2px solid var(--con1);
+  border-radius: 3px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.menu__item--value {
+  justify-content: space-between;
+  text-align: left;
+}
+
+.menu__value {
+  color: var(--sig3);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+/* O foco é desenhado por nós: `:focus-visible` sozinho não aparece quando a
+   navegação vem do gamepad, que não é nem teclado nem ponteiro. */
+.menu__item.is-focused {
+  border-color: var(--sig3);
+  background: rgba(232, 187, 40, 0.16);
+  color: var(--white, #f2f5f8);
+  outline: none;
+}
+
+.menu__hint {
+  margin: 4px 0 0;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--con4);
+}
+
+.hud-pause {
+  /* 32 px de caixa com área de toque de 44 via padding: pequeno na tela,
+     confortável no dedo. */
+  width: 44px;
+  height: 44px;
+  margin: -10px -10px 2px 0;
+  padding: 0;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--con5, #7d8a9a);
+  background: none;
+  border: none;
+  cursor: pointer;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+
+.hud-pause:hover,
+.hud-pause:focus-visible {
+  color: var(--sig3);
+}

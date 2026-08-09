@@ -27,6 +27,7 @@ import {
   type RunState,
 } from '../../core/progression/run-state';
 import { captureCheckpoint } from '../../core/progression/checkpoint';
+import { BossState } from '../../core/boss/estivador';
 import { createRng } from '../../core/math';
 import { Action } from '../../core/input/actions';
 import type { GameEventBus, Unsubscribe } from '../../core/events/bus';
@@ -166,6 +167,7 @@ export class LevelScene extends Phaser.Scene {
   };
 
   private accumulatorMs = 0;
+  private simulationPaused = false;
   private quality: QualityLevel = 'high';
   private phase: LevelPhase = 'playing';
   private deathTimerMs = 0;
@@ -483,6 +485,13 @@ export class LevelScene extends Phaser.Scene {
       onHealthChanged: (hp, max, phase) =>
         this.deps.bus.emit('boss:health', { fraction: max > 0 ? hp / max : 0, phase }),
       onPhaseChanged: (phase) => this.deps.bus.emit('boss:phase', { phase }),
+      onStateChanged: (state, phase) => {
+        if (state === BossState.Telegraph) {
+          this.deps.bus.emit('boss:telegraph', { pattern: boss.brain.pattern ?? '' });
+        } else if (state === BossState.Vent) {
+          this.deps.bus.emit('boss:vent', { phase });
+        }
+      },
       onDied: (source) => this.onBossDefeated(source),
       playFx: (key, x, y) => this.fx.play(key, x, y),
     });
@@ -546,7 +555,31 @@ export class LevelScene extends Phaser.Scene {
 
   /* ───────────────────────────── Loop ───────────────────────────── */
 
+  /**
+   * Congela a SIMULAÇÃO sem congelar a cena.
+   *
+   * Um flag nosso, e não `scene.pause()` do Phaser: `pause()` só tem efeito
+   * quando a cena já está marcada como RUNNING, e o momento em que mais
+   * precisamos dela — o fim do `create`, com a tela de título aberta — é
+   * justamente quando ela ainda não está. O resultado era o jogo rodando
+   * atrás do menu, com o jogador levando tiro antes de apertar JOGAR.
+   */
+  setSimulationPaused(paused: boolean): void {
+    this.simulationPaused = paused;
+    /* O mundo do Arcade também PARA. Só pular o nosso `update` não basta: os
+       corpos guardam velocidade e o motor continua integrando por conta
+       própria, então o jogador seguia deslizando por baixo do menu de pausa.
+       Foi assim que a tela de título "pausada" deixava o personagem andar. */
+    if (paused) this.physics.pause();
+    else this.physics.resume();
+
+    // Descarta o tempo acumulado: retomar não pode disparar uma rajada de
+    // passos para "recuperar" os segundos em que o menu esteve aberto.
+    if (!paused) this.accumulatorMs = 0;
+  }
+
   override update(_time: number, delta: number): void {
+    if (this.simulationPaused) return;
     const dt = Math.min(delta, MAX_FRAME_MS);
 
     /* Passo fixo para a simulação: o mesmo input produz o mesmo resultado em
@@ -631,6 +664,11 @@ export class LevelScene extends Phaser.Scene {
   setQuality(level: QualityLevel): void {
     this.quality = level;
     this.fx.setQuality(level);
+  }
+
+  /** 0..1, vindo das Settings. Acessibilidade: shake é causa de enjoo. */
+  setShakeIntensity(intensity: number): void {
+    this.director.shakeIntensity = intensity;
   }
 
   /* ──────────────────────────── Projéteis ───────────────────────── */
@@ -1122,6 +1160,7 @@ export class LevelScene extends Phaser.Scene {
     this.enemyDamage.knockback = 0;
 
     boss.takeDamage(this.enemyDamage, this.time.now, onCore);
+    this.deps.bus.emit('boss:hit', { onCore, x: shot.x, y: shot.y });
     /* Faísca no núcleo, ricochete na blindagem. É o único aviso de que a mira
        está certa ou errada — e sem ele o jogador não tem como descobrir a
        regra da luta sem que alguém conte. */
@@ -1211,7 +1250,8 @@ export class LevelScene extends Phaser.Scene {
       const run = this.deps.run;
       return [
         `inimigos ${alive}/${this.enemies.length}  destrutíveis ${this.destructibles.length}`,
-        `score    ${run.score}  vidas ${run.lives}  fase:${this.phase}`,
+        `score    ${run.score}  vidas ${run.lives}  fase:${this.phase}` +
+          `${this.simulationPaused ? '  PAUSADO' : ''}`,
         states || '(nenhum ativo)',
       ].join('\n');
     });

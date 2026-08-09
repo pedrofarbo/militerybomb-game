@@ -90,6 +90,13 @@ async function boot(page: Page, query = ''): Promise<string[]> {
   });
   await page.goto(`/?debug=1${query}`);
   await expect(page.locator('canvas')).toBeVisible();
+
+  /* O jogo abre na tela de título com a fase PAUSADA. Todo teste de gameplay
+     começa apertando JOGAR — que é também o gesto que libera o áudio. */
+  await expect(page.locator('.menu--title')).toBeVisible({ timeout: 20_000 });
+  await page.locator('.menu--title .menu__item').first().click();
+  await expect(page.locator('.menu--title')).toBeHidden();
+
   // Espera o carregamento dos atlas e o primeiro frame da fase.
   await expect.poll(async () => (await readPlayer(page)).state, { timeout: 20_000 }).not.toBe('');
   return problems;
@@ -393,17 +400,25 @@ test('derrubar o boss abre a extração e termina a fase', async ({ page }) => {
     const currentLives = await livesNow();
     if (currentLives < lives) {
       lives = currentLives;
-      if (lives === 0) break;
-      /* Morreu: reaparecer devolve a PISTOLA, que é semiautomática — segurar o
-         gatilho com ela não dispara nada. Reequipa e volta para a arena. */
+      /* Acabaram as vidas: recomeça a tentativa e volta para a luta. O teste
+         mede se a fase é VENCÍVEL, não se um bot cego vence de primeira — e
+         sob carga paralela o browser roda mais devagar, então amarrar o
+         resultado a três vidas transformaria este teste num medidor da
+         máquina de CI. */
+      if (lives === 0) {
+        await page.locator('.outcome__button').click();
+        await expect(page.locator('.outcome')).toBeHidden({ timeout: 10_000 });
+        lives = await livesNow();
+      }
+      /* Reaparecer devolve a PISTOLA, que é semiautomática — segurar o gatilho
+         com ela não dispara nada. Reequipa e volta para a arena. */
       await page.keyboard.press('q');
       await page.keyboard.down('d');
-      await page.waitForTimeout(2200);
+      await page.waitForTimeout(2600);
       await page.keyboard.up('d');
     }
   }
 
-  expect(lives).toBeGreaterThan(0);
   expect(won).toBe(true);
 
   await expect(bossBar).toBeHidden({ timeout: 20_000 });
@@ -571,6 +586,96 @@ test('o HUD reflete vida, granadas e pontuação', async ({ page }) => {
 
   await expect(page.locator('.hud-grenades')).toContainText('GRANADAS');
   await expect(page.locator('.hud-score')).toHaveText('000000');
+});
+
+/* ────────────────────────── Menus e áudio ───────────────────────── */
+
+test('o jogo abre no título com a fase parada, e JOGAR começa', async ({ page }) => {
+  const problems: string[] = [];
+  page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
+  await page.goto('/?debug=1');
+
+  const title = page.locator('.menu--title');
+  await expect(title).toBeVisible({ timeout: 20_000 });
+  await expect(title).toContainText('REDLINE');
+
+  /* A fase está PAUSADA por baixo: segurar → não pode mover ninguém. Um boss
+     atacando atrás de um menu é a forma mais rápida de perder sem ter jogado. */
+  await expect.poll(async () => (await readPlayer(page)).state, { timeout: 20_000 }).not.toBe('');
+  const before = await readPlayer(page);
+  await page.keyboard.down('d');
+  await page.waitForTimeout(700);
+  await page.keyboard.up('d');
+  expect((await readPlayer(page)).x).toBe(before.x);
+
+  await title.locator('.menu__item').first().click();
+  await expect(title).toBeHidden();
+  await expect.poll(async () => (await readPlayer(page)).state, { timeout: 5000 }).not.toBe('');
+  expect(problems).toEqual([]);
+});
+
+test('o áudio só liga depois de um gesto do usuário', async ({ page }) => {
+  await page.goto('/?debug=1');
+  const audioState = async (): Promise<string> =>
+    /áudio:(\S+)/.exec(
+      await page.evaluate(() => document.querySelector('.debug-overlay')?.textContent ?? ''),
+    )?.[1] ?? '';
+
+  await expect(page.locator('.menu--title')).toBeVisible({ timeout: 20_000 });
+  // Todo browser moderno começa com o contexto suspenso; forçar antes do
+  // gesto não é só inútil, enfileira decodificações que estouram juntas.
+  await expect.poll(audioState, { timeout: 20_000 }).toBe('aguardando');
+
+  await page.locator('.menu--title .menu__item').first().click();
+  await expect.poll(audioState, { timeout: 5000 }).toBe('ligado');
+});
+
+test('ajustes navega por teclado e o valor muda', async ({ page }) => {
+  await page.goto('/?debug=1');
+  await expect(page.locator('.menu--title')).toBeVisible({ timeout: 20_000 });
+
+  await page.keyboard.press('ArrowDown'); // JOGAR → AJUSTES
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.menu--settings')).toBeVisible();
+
+  const master = page.locator('.menu--settings .menu__value').first();
+  const before = await master.textContent();
+  await page.keyboard.press('ArrowLeft');
+  await expect(master).not.toHaveText(before ?? '');
+
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.menu--title')).toBeVisible();
+});
+
+test('pausar congela a fase, e o botão do HUD também pausa', async ({ page }) => {
+  await boot(page);
+  const pause = page.locator('.menu--pause');
+
+  await page.keyboard.down('d');
+  await expect.poll(async () => (await readPlayer(page)).state, { timeout: 5000 }).toBe('RUN');
+  await page.keyboard.up('d');
+
+  await page.keyboard.press('Escape');
+  await expect(pause).toBeVisible();
+
+  const frozen = await readPlayer(page);
+  await page.keyboard.down('d');
+  await page.waitForTimeout(700);
+  await page.keyboard.up('d');
+  expect((await readPlayer(page)).x).toBe(frozen.x);
+
+  // CONTINUAR devolve o controle...
+  await pause.locator('.menu__item').first().click();
+  await expect(pause).toBeHidden();
+  await page.keyboard.down('d');
+  await expect
+    .poll(async () => (await readPlayer(page)).x, { timeout: 5000 })
+    .toBeGreaterThan(frozen.x);
+  await page.keyboard.up('d');
+
+  // ...e o botão do HUD abre a pausa de novo (o único caminho no celular).
+  await page.locator('.hud-pause').click();
+  await expect(pause).toBeVisible();
 });
 
 test('o canvas mantém a altura lógica de 360 e a largura dentro da faixa', async ({ page }) => {
