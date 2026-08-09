@@ -26,6 +26,13 @@ body {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   /* Toque no jogo nunca deve rolar a página nem abrir menu de seleção. */
   overscroll-behavior: none;
+  /* `touch-action: none` no DOCUMENTO, não só nos widgets.
+     `user-scalable=no` no meta viewport é IGNORADO pelo Safari do iOS desde o
+     iOS 10 — lá, dois dedos na tela viram pinça de zoom, e o navegador assume
+     o gesto e para de entregar os eventos de ponteiro do jogo. Andar segurando
+     o direcional e atirar são exatamente dois dedos. Esta linha é o único jeito
+     de dizer ao sistema que estes toques são do jogo. */
+  touch-action: none;
   -webkit-user-select: none;
   user-select: none;
   -webkit-touch-callout: none;
@@ -37,6 +44,7 @@ body {
   inset: 0;
   display: grid;
   place-items: center;
+  touch-action: none;
 }
 
 /* O canvas renderiza na resolução lógica (≤ 800×360) e é ampliado por CSS.
@@ -51,6 +59,7 @@ body {
 /* A UI se ancora ao CANVAS, não à janela: assim o letterbox residual nunca
    separa o HUD do jogo. O JS espelha a caixa do canvas nestas variáveis. */
 .ui-root {
+  touch-action: none;
   position: fixed;
   left: var(--canvas-left, 0px);
   top: var(--canvas-top, 0px);

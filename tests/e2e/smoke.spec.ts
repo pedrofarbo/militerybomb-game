@@ -750,6 +750,50 @@ test('o direcional não trava quando o browser rouba o toque', async ({ page, is
   await expect.poll(vx, { timeout: 5000 }).toBeLessThan(0);
 });
 
+/**
+ * REGRESSÃO: andar segurando o direcional E atirar são DOIS DEDOS na tela — e
+ * é aí que o navegador aplica a heurística de pinça. No Safari do iOS o
+ * `user-scalable=no` do meta viewport é ignorado desde o iOS 10, então o
+ * sistema assume o gesto e pode parar de entregar os Pointer Events do jogo.
+ *
+ * A defesa é um SEGUNDO CANAL: os Touch Events antigos continuam chegando, e
+ * `touches.length === 0` é a afirmação mais direta que a plataforma sabe
+ * fazer — nenhum dedo na tela. Aqui o gesto roubado é simulado entregando o
+ * `touchend` sem nenhum `pointerup`.
+ */
+test('o direcional solta pelo touchend mesmo sem pointerup', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'os controles touch só existem no perfil mobile');
+  await boot(page);
+
+  const vx = async (): Promise<number> =>
+    Number(
+      /vel\s+(-?\d+)/.exec(
+        await page.evaluate(() => document.querySelector('.debug-overlay')?.textContent ?? ''),
+      )?.[1] ?? NaN,
+    );
+
+  await page.evaluate(() => {
+    const zone = document.querySelector('.touch-stick-zone')!;
+    const base = {
+      pointerId: 11,
+      pointerType: 'touch',
+      isPrimary: true,
+      bubbles: true,
+      cancelable: true,
+      clientY: 300,
+    };
+    zone.dispatchEvent(new PointerEvent('pointerdown', { ...base, clientX: 120 }));
+    zone.dispatchEvent(new PointerEvent('pointermove', { ...base, clientX: 220 }));
+  });
+  await expect.poll(vx, { timeout: 5000 }).toBeGreaterThan(0);
+
+  // O dedo sai da tela, mas só os Touch Events avisam.
+  await page.evaluate(() => {
+    window.dispatchEvent(new TouchEvent('touchend', { bubbles: true, touches: [] }));
+  });
+  await expect.poll(vx, { timeout: 5000 }).toBe(0);
+});
+
 /** Sair do jogo com o dedo na tela nunca entrega o `pointerup`. */
 test('trocar de app com o dedo na tela solta os controles', async ({ page, isMobile }) => {
   test.skip(!isMobile, 'os controles touch só existem no perfil mobile');

@@ -37,6 +37,11 @@ Requer Node.js ≥ 22.12.
 colisão; `?spawn=120` entra direto naquela coluna de tiles, para não ter de
 rejogar o mapa inteiro ao ajustar o fim da fase.
 
+No celular, `?debug=1` mostra também o painel **touch**: ponteiros vivos, dono
+do direcional, eixo e botões segurados. Ele existe porque esse subsistema falha
+em aparelho, não em teste — se sobrar ponteiro vivo sem dedo na tela, é ali que
+aparece.
+
 ### Uma tentativa
 
 Três vidas, e uma vida extra a cada 5 000 pontos. Perder uma vida **recarrega a
@@ -151,7 +156,7 @@ Build atual: **~390 KB gzip** de código (Phaser 358 KB + jogo 28 KB + CSS 2 KB)
 mais 1,1 MB de áudio placeholder em WAV — que o som final em `.ogg` reduz a uma
 fração disso.
 
-Testes: **167 unitários** (~1 s, sem browser) e **54 de browser** (desktop e
+Testes: **167 unitários** (~1 s, sem browser) e **56 de browser** (desktop e
 mobile landscape, contra a build de produção).
 
 ## Originalidade

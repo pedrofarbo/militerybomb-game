@@ -248,6 +248,11 @@ export class UiRoot {
     else this.hudLives.textContent = lives > 5 ? `VIDAS ×${lives}` : `VIDAS ${'▮'.repeat(lives)}`;
   }
 
+  /** Estado dos controles touch, para o painel de debug. */
+  get touchDebugState(): string {
+    return this.touch.debugState;
+  }
+
   setTouchEnabled(enabled: boolean): void {
     this.touchEnabled = enabled;
     this.touch.setVisible(enabled);

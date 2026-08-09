@@ -105,6 +105,25 @@ export class TouchControls {
     if (!visible) this.releaseAll();
   }
 
+  /**
+   * Retrato do estado do toque, para o painel de debug.
+   *
+   * Existe porque este subsistema falha em APARELHO, não em teste: com o
+   * painel aberto dá para ver, no próprio celular, se sobrou ponteiro vivo
+   * sem dedo na tela — que é a assinatura exata do controle travado.
+   */
+  get debugState(): string {
+    const held = this.buttons
+      .filter((b) => b.pointerId !== null)
+      .map((b) => `${b.spec.className}#${String(b.pointerId)}`)
+      .join(' ');
+    return [
+      `vivos   [${[...this.livePointers].join(',')}]  stick:${String(this.stickPointerId)}`,
+      `eixo    ${this.source.axisX.toFixed(2)}, ${this.source.axisY.toFixed(2)}`,
+      `botões  ${held || '—'}`,
+    ].join('\n');
+  }
+
   /* ─────────────────── Rastreio global de ponteiros ──────────────── */
 
   /**
@@ -130,6 +149,21 @@ export class TouchControls {
     };
     window.addEventListener('pointerup', forget, { capture: true });
     window.addEventListener('pointercancel', forget, { capture: true });
+
+    /* SEGUNDO CANAL, de propósito: os Touch Events antigos.
+       Quando o navegador decide que dois dedos são uma pinça — o caso de andar
+       segurando o direcional E atirar — ele assume o gesto e pode parar de
+       entregar os Pointer Events. Os Touch Events continuam chegando, e
+       `touches.length === 0` é a afirmação mais direta que a plataforma sabe
+       fazer: NÃO HÁ NENHUM DEDO NA TELA. Duas fontes independentes confirmando
+       a mesma invariante é o que a torna confiável em aparelho de verdade. */
+    const onTouchEnd = (e: TouchEvent): void => {
+      if (e.touches.length > 0) return;
+      this.livePointers.clear();
+      this.releaseAll();
+    };
+    window.addEventListener('touchend', onTouchEnd, { capture: true, passive: true });
+    window.addEventListener('touchcancel', onTouchEnd, { capture: true, passive: true });
 
     /* Sair do jogo com o dedo na tela (trocar de app, atender uma ligação,
        bloquear o aparelho) nunca entrega o `pointerup`. Voltar com o

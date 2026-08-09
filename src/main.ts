@@ -252,6 +252,8 @@ async function bootstrap(): Promise<void> {
   });
   bus.on('game:pauseRequested', openPause);
 
+  if (device.hasTouch) debug.register('touch', () => ui.touchDebugState);
+
   debug.register(
     'build',
     () =>
